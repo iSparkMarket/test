@@ -2949,98 +2949,1330 @@ function arc_filter_users_ajax_handler() {
 }
 add_action('wp_ajax_arc_filter_users', 'arc_filter_users_ajax_handler');
 
-// --- Data Viewer Aggregated Dashboard Section ---
+// --- Data Viewer Comprehensive Dashboard Section ---
 function arc_render_data_viewer_aggregated_dashboard() {
     if (!current_user_can('data-viewer')) return;
+    
+    $current_user = wp_get_current_user();
+    $user_roles = array_map('strtolower', $current_user->roles);
+    
+    // Only show for data-viewer role
+    if (!in_array('data-viewer', $user_roles)) return;
+    
     ?>
-    <div class="data-viewer-aggregated-dashboard" style="margin-top:40px;">
-        <h2>Aggregated Course Data</h2>
-        <form id="data-viewer-date-filter" style="margin-bottom:20px;">
-            <label for="dv_date_start">Start Date:</label>
-            <input type="date" id="dv_date_start" name="dv_date_start">
-            <label for="dv_date_end">End Date:</label>
-            <input type="date" id="dv_date_end" name="dv_date_end">
-            <button type="button" id="dv_filter_btn">Apply Filter</button>
-        </form>
-        <div id="dv_agg_table_container">
-            <!-- Aggregated data table will be rendered here -->
-        </div>
-        <div id="dv_agg_chart_container" style="margin-top:30px;">
-            <!-- Aggregated data chart will be rendered here -->
+    <div class="data-viewer-comprehensive-dashboard" style="margin-top: 40px;">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h2 class="mb-0">
+                    <i class="fas fa-chart-line"></i> <?php esc_html_e('Data Analytics Dashboard', 'role-user-manager'); ?>
+                </h2>
+                <p class="mb-0"><?php esc_html_e('Comprehensive view of training data and program metrics', 'role-user-manager'); ?></p>
+            </div>
+            <div class="card-body">
+                <!-- Navigation Tabs -->
+                <ul class="nav nav-tabs" id="dataViewerTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                            <?php esc_html_e('Overview', 'role-user-manager'); ?>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="program-leaders-tab" data-bs-toggle="tab" data-bs-target="#program-leaders" type="button" role="tab">
+                            <?php esc_html_e('Program Leaders', 'role-user-manager'); ?>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="site-reports-tab" data-bs-toggle="tab" data-bs-target="#site-reports" type="button" role="tab">
+                            <?php esc_html_e('Site Reports', 'role-user-manager'); ?>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="historical-tab" data-bs-toggle="tab" data-bs-target="#historical" type="button" role="tab">
+                            <?php esc_html_e('Historical Data', 'role-user-manager'); ?>
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="dataViewerTabContent">
+                    <!-- Overview Tab -->
+                    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <h4><?php esc_html_e('System Overview', 'role-user-manager'); ?></h4>
+                                <form id="data-viewer-date-filter" class="mb-3">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <label for="dv_date_start" class="form-label"><?php esc_html_e('Start Date:', 'role-user-manager'); ?></label>
+                                            <input type="date" id="dv_date_start" name="dv_date_start" class="form-control">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label for="dv_date_end" class="form-label"><?php esc_html_e('End Date:', 'role-user-manager'); ?></label>
+                                            <input type="date" id="dv_date_end" name="dv_date_end" class="form-control">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label for="dv_program_filter" class="form-label"><?php esc_html_e('Program:', 'role-user-manager'); ?></label>
+                                            <select id="dv_program_filter" name="dv_program_filter" class="form-select">
+                                                <option value=""><?php esc_html_e('All Programs', 'role-user-manager'); ?></option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 d-flex align-items-end">
+                                            <button type="button" id="dv_filter_btn" class="btn btn-primary">
+                                                <?php esc_html_e('Apply Filter', 'role-user-manager'); ?>
+                                            </button>
+                                            <button type="button" id="dv_export_btn" class="btn btn-success ms-2">
+                                                <?php esc_html_e('Export Data', 'role-user-manager'); ?>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                                
+                                <!-- Key Metrics Cards -->
+                                <div id="dv_metrics_container" class="row mb-4">
+                                    <!-- Will be populated by AJAX -->
+                                </div>
+                                
+                                <!-- Aggregated Data Table -->
+                                <div id="dv_agg_table_container">
+                                    <div class="text-center">
+                                        <div class="spinner-border" role="status">
+                                            <span class="visually-hidden"><?php esc_html_e('Loading...', 'role-user-manager'); ?></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Charts -->
+                                <div class="row mt-4">
+                                    <div class="col-md-6">
+                                        <div id="dv_agg_chart_container">
+                                            <!-- Enrollment/Completion chart -->
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div id="dv_trends_chart_container">
+                                            <!-- Trends chart -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Program Leaders Tab -->
+                    <div class="tab-pane fade" id="program-leaders" role="tabpanel">
+                        <div class="mt-3">
+                            <h4><?php esc_html_e('Program Leader Profiles & Reports', 'role-user-manager'); ?></h4>
+                            <p class="text-muted"><?php esc_html_e('View profiles of all Program Leaders and their associated site data', 'role-user-manager'); ?></p>
+                            <div id="program_leaders_container">
+                                <div class="text-center">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden"><?php esc_html_e('Loading...', 'role-user-manager'); ?></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Site Reports Tab -->
+                    <div class="tab-pane fade" id="site-reports" role="tabpanel">
+                        <div class="mt-3">
+                            <h4><?php esc_html_e('Site-Level Reports', 'role-user-manager'); ?></h4>
+                            <p class="text-muted"><?php esc_html_e('Detailed breakdown by site with current and historical data', 'role-user-manager'); ?></p>
+                            <div id="site_reports_container">
+                                <div class="text-center">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden"><?php esc_html_e('Loading...', 'role-user-manager'); ?></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Historical Data Tab -->
+                    <div class="tab-pane fade" id="historical" role="tabpanel">
+                        <div class="mt-3">
+                            <h4><?php esc_html_e('Historical Trends', 'role-user-manager'); ?></h4>
+                            <p class="text-muted"><?php esc_html_e('Long-term trends and comparative analysis', 'role-user-manager'); ?></p>
+                            <div id="historical_data_container">
+                                <div class="text-center">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden"><?php esc_html_e('Loading...', 'role-user-manager'); ?></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+
+    <style>
+        .data-viewer-comprehensive-dashboard .card {
+            border: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .metric-card h3 {
+            font-size: 2.5rem;
+            margin: 0;
+            font-weight: bold;
+        }
+        
+        .metric-card p {
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+        }
+        
+        .program-leader-card {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .program-leader-card:hover {
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .site-report-card {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .nav-tabs .nav-link {
+            color: #495057;
+            border: 1px solid transparent;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: #007bff;
+            border-color: #dee2e6 #dee2e6 #fff;
+            background-color: #fff;
+        }
+    </style>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-    // Placeholder: AJAX call to fetch aggregated data and render table/chart
     jQuery(document).ready(function($) {
-        function fetchAggregatedData() {
-            var start = $('#dv_date_start').val();
-            var end = $('#dv_date_end').val();
+        let currentChart = null;
+        let trendsChart = null;
+        
+        // Load programs for filter
+        function loadPrograms() {
             $.post(arc_dashboard_vars.ajaxurl, {
-                action: 'arc_get_aggregated_data',
-                _wpnonce: arc_dashboard_vars.nonce,
-                date_start: start,
-                date_end: end
+                action: 'arc_get_programs_list',
+                _wpnonce: arc_dashboard_vars.nonce
             }, function(response) {
                 if (response.success) {
-                    $('#dv_agg_table_container').html(response.data.table_html);
-                    // Render chart
-                    if (response.data.chart_data) {
-                        renderAggChart(response.data.chart_data);
-                    }
-                } else {
-                    $('#dv_agg_table_container').html('<div class="alert alert-danger">Failed to load data.</div>');
+                    var select = $('#dv_program_filter');
+                    select.empty().append('<option value=""><?php esc_html_e('All Programs', 'role-user-manager'); ?></option>');
+                    response.data.programs.forEach(function(program) {
+                        select.append('<option value="' + program + '">' + program + '</option>');
+                    });
                 }
             });
         }
-        function renderAggChart(chartData) {
+        
+        // Fetch aggregated data
+        function fetchAggregatedData() {
+            var start = $('#dv_date_start').val();
+            var end = $('#dv_date_end').val();
+            var program = $('#dv_program_filter').val();
+            
+            $.post(arc_dashboard_vars.ajaxurl, {
+                action: 'arc_get_comprehensive_data',
+                _wpnonce: arc_dashboard_vars.nonce,
+                date_start: start,
+                date_end: end,
+                program: program
+            }, function(response) {
+                if (response.success) {
+                    $('#dv_metrics_container').html(response.data.metrics_html);
+                    $('#dv_agg_table_container').html(response.data.table_html);
+                    
+                    // Render main chart
+                    if (response.data.chart_data) {
+                        renderMainChart(response.data.chart_data);
+                    }
+                    
+                    // Render trends chart
+                    if (response.data.trends_data) {
+                        renderTrendsChart(response.data.trends_data);
+                    }
+                } else {
+                    $('#dv_agg_table_container').html('<div class="alert alert-danger"><?php esc_html_e('Failed to load data.', 'role-user-manager'); ?></div>');
+                }
+            });
+        }
+        
+        // Fetch program leaders data
+        function fetchProgramLeaders() {
+            $.post(arc_dashboard_vars.ajaxurl, {
+                action: 'arc_get_program_leaders_data',
+                _wpnonce: arc_dashboard_vars.nonce
+            }, function(response) {
+                if (response.success) {
+                    $('#program_leaders_container').html(response.data.html);
+                } else {
+                    $('#program_leaders_container').html('<div class="alert alert-danger"><?php esc_html_e('Failed to load program leaders data.', 'role-user-manager'); ?></div>');
+                }
+            });
+        }
+        
+        // Fetch site reports data
+        function fetchSiteReports() {
+            $.post(arc_dashboard_vars.ajaxurl, {
+                action: 'arc_get_site_reports_data',
+                _wpnonce: arc_dashboard_vars.nonce
+            }, function(response) {
+                if (response.success) {
+                    $('#site_reports_container').html(response.data.html);
+                } else {
+                    $('#site_reports_container').html('<div class="alert alert-danger"><?php esc_html_e('Failed to load site reports data.', 'role-user-manager'); ?></div>');
+                }
+            });
+        }
+        
+        // Fetch historical data
+        function fetchHistoricalData() {
+            $.post(arc_dashboard_vars.ajaxurl, {
+                action: 'arc_get_historical_data',
+                _wpnonce: arc_dashboard_vars.nonce
+            }, function(response) {
+                if (response.success) {
+                    $('#historical_data_container').html(response.data.html);
+                } else {
+                    $('#historical_data_container').html('<div class="alert alert-danger"><?php esc_html_e('Failed to load historical data.', 'role-user-manager'); ?></div>');
+                }
+            });
+        }
+        
+        // Render main chart
+        function renderMainChart(chartData) {
+            if (currentChart) {
+                currentChart.destroy();
+            }
             $('#dv_agg_chart_container').html('<canvas id="dvAggChart"></canvas>');
             var ctx = document.getElementById('dvAggChart').getContext('2d');
-            new Chart(ctx, chartData);
+            currentChart = new Chart(ctx, chartData);
         }
+        
+        // Render trends chart
+        function renderTrendsChart(chartData) {
+            if (trendsChart) {
+                trendsChart.destroy();
+            }
+            $('#dv_trends_chart_container').html('<canvas id="dvTrendsChart"></canvas>');
+            var ctx = document.getElementById('dvTrendsChart').getContext('2d');
+            trendsChart = new Chart(ctx, chartData);
+        }
+        
+        // Event handlers
         $('#dv_filter_btn').on('click', fetchAggregatedData);
+        
+        $('#dv_export_btn').on('click', function() {
+            var start = $('#dv_date_start').val();
+            var end = $('#dv_date_end').val();
+            var program = $('#dv_program_filter').val();
+            
+            var form = $('<form method="POST" action="' + arc_dashboard_vars.ajaxurl + '">');
+            form.append('<input type="hidden" name="action" value="arc_export_analytics_data">');
+            form.append('<input type="hidden" name="_wpnonce" value="' + arc_dashboard_vars.nonce + '">');
+            form.append('<input type="hidden" name="date_start" value="' + start + '">');
+            form.append('<input type="hidden" name="date_end" value="' + end + '">');
+            form.append('<input type="hidden" name="program" value="' + program + '">');
+            $('body').append(form);
+            form.submit();
+            form.remove();
+        });
+        
+        // Tab change handlers
+        $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
+            var target = $(e.target).data('bs-target');
+            switch(target) {
+                case '#program-leaders':
+                    fetchProgramLeaders();
+                    break;
+                case '#site-reports':
+                    fetchSiteReports();
+                    break;
+                case '#historical':
+                    fetchHistoricalData();
+                    break;
+            }
+        });
+        
         // Initial load
+        loadPrograms();
         fetchAggregatedData();
     });
+    
+    // Global functions for detail views
+    function viewProgramLeaderDetails(userId) {
+        // Open the existing user modal but in view-only mode for program leaders
+        openUserEditModal(userId);
+    }
+    
+    function viewSiteDetails(siteName) {
+        // Show site details in a modal
+        var modal = $('<div class="modal fade" id="siteDetailsModal" tabindex="-1">');
+        modal.html(`
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><?php esc_html_e('Site Details:', 'role-user-manager'); ?> ${siteName}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="text-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden"><?php esc_html_e('Loading...', 'role-user-manager'); ?></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+        
+        $('body').append(modal);
+        var siteModal = new bootstrap.Modal(document.getElementById('siteDetailsModal'));
+        siteModal.show();
+        
+        // Remove modal when hidden
+        modal.on('hidden.bs.modal', function() {
+            modal.remove();
+        });
+        
+        // Load site details
+        $.post(arc_dashboard_vars.ajaxurl, {
+            action: 'arc_get_site_detail_data',
+            site_name: siteName,
+            _wpnonce: arc_dashboard_vars.nonce
+        }, function(response) {
+            if (response.success) {
+                $('#siteDetailsModal .modal-body').html(response.data.html);
+            } else {
+                $('#siteDetailsModal .modal-body').html('<div class="alert alert-danger"><?php esc_html_e('Failed to load site details.', 'role-user-manager'); ?></div>');
+            }
+        });
+    }
     </script>
     <?php
 }
 add_action('plugin_dashboard_after', 'arc_render_data_viewer_aggregated_dashboard');
 
-// AJAX handler for aggregated data
-add_action('wp_ajax_arc_get_aggregated_data', function() {
+// AJAX handler for programs list
+add_action('wp_ajax_arc_get_programs_list', function() {
     if (!current_user_can('data-viewer')) wp_send_json_error(['message' => 'Unauthorized']);
+    
+    global $wpdb;
+    $programs = $wpdb->get_col("
+        SELECT DISTINCT meta_value 
+        FROM {$wpdb->usermeta} 
+        WHERE meta_key = 'programme' 
+        AND meta_value != '' 
+        ORDER BY meta_value ASC
+    ");
+    
+    wp_send_json_success(['programs' => $programs]);
+});
+
+// AJAX handler for comprehensive data overview
+add_action('wp_ajax_arc_get_comprehensive_data', function() {
+    if (!current_user_can('data-viewer')) wp_send_json_error(['message' => 'Unauthorized']);
+    
     $date_start = isset($_POST['date_start']) ? sanitize_text_field($_POST['date_start']) : '';
     $date_end = isset($_POST['date_end']) ? sanitize_text_field($_POST['date_end']) : '';
-    // Example aggregation logic (replace with real queries as needed)
+    $program = isset($_POST['program']) ? sanitize_text_field($_POST['program']) : '';
+    
     global $wpdb;
-    $enrollments = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE meta_key = 'enrolled_courses'");
-    $completions = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE meta_key = 'completed_courses'");
-    $sites = $wpdb->get_var("SELECT COUNT(DISTINCT meta_value) FROM {$wpdb->usermeta} WHERE meta_key = 'sites'");
-    // Table HTML
-    $table_html = '<table class="table table-bordered"><thead><tr><th>Metric</th><th>Total</th></tr></thead><tbody>';
-    $table_html .= '<tr><td>Enrollments</td><td>' . intval($enrollments) . '</td></tr>';
-    $table_html .= '<tr><td>Completions</td><td>' . intval($completions) . '</td></tr>';
-    $table_html .= '<tr><td>Sites</td><td>' . intval($sites) . '</td></tr>';
-    $table_html .= '</tbody></table>';
-    // Chart.js config example
+    
+    // Build date filter for user registration
+    $date_where = '';
+    if (!empty($date_start) && !empty($date_end)) {
+        $date_where = $wpdb->prepare(" AND user_registered BETWEEN %s AND %s", $date_start . ' 00:00:00', $date_end . ' 23:59:59');
+    } elseif (!empty($date_start)) {
+        $date_where = $wpdb->prepare(" AND user_registered >= %s", $date_start . ' 00:00:00');
+    } elseif (!empty($date_end)) {
+        $date_where = $wpdb->prepare(" AND user_registered <= %s", $date_end . ' 23:59:59');
+    }
+    
+    // Build program filter
+    $program_where = '';
+    if (!empty($program)) {
+        $program_where = $wpdb->prepare(" AND ID IN (SELECT user_id FROM {$wpdb->usermeta} WHERE meta_key = 'programme' AND meta_value = %s)", $program);
+    }
+    
+    // Get user counts by role
+    $users_by_role = $wpdb->get_results("
+        SELECT 
+            CASE 
+                WHEN cap.meta_value LIKE '%program-leader%' THEN 'program-leader'
+                WHEN cap.meta_value LIKE '%site-supervisor%' THEN 'site-supervisor'
+                WHEN cap.meta_value LIKE '%frontline-staff%' THEN 'frontline-staff'
+                WHEN cap.meta_value LIKE '%data-viewer%' THEN 'data-viewer'
+                ELSE 'other'
+            END as role,
+            COUNT(*) as count
+        FROM {$wpdb->users} u
+        JOIN {$wpdb->usermeta} cap ON u.ID = cap.user_id
+        WHERE cap.meta_key = '{$wpdb->prefix}capabilities'
+        {$date_where}
+        {$program_where}
+        GROUP BY role
+    ");
+    
+    // Get total enrollments (using LearnDash user_meta if available)
+    $total_enrollments = 0;
+    if (function_exists('learndash_get_enrolled_users')) {
+        // Get all courses
+        $courses = get_posts(['post_type' => 'sfwd-courses', 'numberposts' => -1, 'fields' => 'ids']);
+        foreach ($courses as $course_id) {
+            $enrolled_users = learndash_get_enrolled_users($course_id);
+            $total_enrollments += count($enrolled_users);
+        }
+    }
+    
+    // Get completion data
+    $total_completions = 0;
+    if (function_exists('learndash_get_enrolled_users')) {
+        foreach ($courses as $course_id) {
+            $enrolled_users = learndash_get_enrolled_users($course_id);
+            foreach ($enrolled_users as $user_id) {
+                if (function_exists('learndash_course_completed') && learndash_course_completed($user_id, $course_id)) {
+                    $total_completions++;
+                }
+            }
+        }
+    }
+    
+    // Get sites count
+    $sites_data = $wpdb->get_results("
+        SELECT DISTINCT meta_value as site
+        FROM {$wpdb->usermeta} 
+        WHERE meta_key = 'sites' 
+        AND meta_value != ''
+    ");
+    
+    $total_sites = 0;
+    $unique_sites = [];
+    foreach ($sites_data as $site_row) {
+        $sites = maybe_unserialize($site_row->site);
+        if (is_array($sites)) {
+            $unique_sites = array_merge($unique_sites, $sites);
+        } else {
+            $unique_sites[] = $site_row->site;
+        }
+    }
+    $total_sites = count(array_unique($unique_sites));
+    
+    // Get programs count
+    $total_programs = $wpdb->get_var("
+        SELECT COUNT(DISTINCT meta_value) 
+        FROM {$wpdb->usermeta} 
+        WHERE meta_key = 'programme' 
+        AND meta_value != ''
+    ");
+    
+    // Calculate completion rate
+    $completion_rate = ($total_enrollments > 0) ? round(($total_completions / $total_enrollments) * 100, 1) : 0;
+    
+    // Build metrics cards HTML
+    $metrics_html = '
+        <div class="col-md-3">
+            <div class="metric-card">
+                <h3>' . number_format($total_enrollments) . '</h3>
+                <p>' . __('Total Enrollments', 'role-user-manager') . '</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <h3>' . number_format($total_completions) . '</h3>
+                <p>' . __('Total Completions', 'role-user-manager') . '</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <h3>' . $completion_rate . '%</h3>
+                <p>' . __('Completion Rate', 'role-user-manager') . '</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <h3>' . number_format($total_sites) . '</h3>
+                <p>' . __('Active Sites', 'role-user-manager') . '</p>
+            </div>
+        </div>
+    ';
+    
+    // Build detailed table HTML
+    $table_html = '<div class="table-responsive"><table class="table table-striped"><thead class="table-dark"><tr>';
+    $table_html .= '<th>' . __('Metric', 'role-user-manager') . '</th>';
+    $table_html .= '<th>' . __('Count', 'role-user-manager') . '</th>';
+    $table_html .= '<th>' . __('Percentage', 'role-user-manager') . '</th>';
+    $table_html .= '</tr></thead><tbody>';
+    
+    $total_users = array_sum(array_column($users_by_role, 'count'));
+    foreach ($users_by_role as $role_data) {
+        $percentage = ($total_users > 0) ? round(($role_data->count / $total_users) * 100, 1) : 0;
+        $table_html .= '<tr>';
+        $table_html .= '<td>' . ucwords(str_replace('-', ' ', $role_data->role)) . '</td>';
+        $table_html .= '<td>' . number_format($role_data->count) . '</td>';
+        $table_html .= '<td>' . $percentage . '%</td>';
+        $table_html .= '</tr>';
+    }
+    
+    $table_html .= '<tr class="table-info"><td><strong>' . __('Total Users', 'role-user-manager') . '</strong></td>';
+    $table_html .= '<td><strong>' . number_format($total_users) . '</strong></td>';
+    $table_html .= '<td><strong>100%</strong></td></tr>';
+    $table_html .= '</tbody></table></div>';
+    
+    // Chart data for enrollments vs completions
     $chart_data = [
-        'type' => 'bar',
+        'type' => 'doughnut',
         'data' => [
-            'labels' => ['Enrollments', 'Completions', 'Sites'],
+            'labels' => [__('Completed', 'role-user-manager'), __('In Progress', 'role-user-manager')],
             'datasets' => [[
-                'label' => 'Totals',
-                'data' => [intval($enrollments), intval($completions), intval($sites)],
-                'backgroundColor' => ['#007bff', '#28a745', '#ffc107']
+                'data' => [$total_completions, $total_enrollments - $total_completions],
+                'backgroundColor' => ['#28a745', '#ffc107'],
+                'borderWidth' => 0
             ]]
         ],
         'options' => [
             'responsive' => true,
-            'plugins' => [ 'legend' => ['display' => false] ]
+            'plugins' => [
+                'title' => [
+                    'display' => true,
+                    'text' => __('Enrollment vs Completion', 'role-user-manager')
+                ],
+                'legend' => [
+                    'position' => 'bottom'
+                ]
+            ]
         ]
     ];
+    
+    // Trends data (last 6 months)
+    $trends_data = [
+        'type' => 'line',
+        'data' => [
+            'labels' => [],
+            'datasets' => [[
+                'label' => __('Monthly Enrollments', 'role-user-manager'),
+                'data' => [],
+                'borderColor' => '#007bff',
+                'backgroundColor' => 'rgba(0,123,255,0.1)',
+                'tension' => 0.4
+            ]]
+        ],
+        'options' => [
+            'responsive' => true,
+            'plugins' => [
+                'title' => [
+                    'display' => true,
+                    'text' => __('Enrollment Trends (6 Months)', 'role-user-manager')
+                ]
+            ],
+            'scales' => [
+                'y' => [
+                    'beginAtZero' => true
+                ]
+            ]
+        ]
+    ];
+    
+    // Generate last 6 months data
+    for ($i = 5; $i >= 0; $i--) {
+        $month_start = date('Y-m-01', strtotime("-{$i} months"));
+        $month_end = date('Y-m-t', strtotime("-{$i} months"));
+        $month_label = date('M Y', strtotime("-{$i} months"));
+        
+        $month_enrollments = $wpdb->get_var($wpdb->prepare("
+            SELECT COUNT(*) 
+            FROM {$wpdb->users} 
+            WHERE user_registered BETWEEN %s AND %s
+        ", $month_start . ' 00:00:00', $month_end . ' 23:59:59'));
+        
+        $trends_data['data']['labels'][] = $month_label;
+        $trends_data['data']['datasets'][0]['data'][] = intval($month_enrollments);
+    }
+    
     wp_send_json_success([
+        'metrics_html' => $metrics_html,
         'table_html' => $table_html,
-        'chart_data' => $chart_data
+        'chart_data' => $chart_data,
+        'trends_data' => $trends_data
     ]);
+});
+
+// AJAX handler for program leaders data
+add_action('wp_ajax_arc_get_program_leaders_data', function() {
+    if (!current_user_can('data-viewer')) wp_send_json_error(['message' => 'Unauthorized']);
+    
+    global $wpdb;
+    
+    // Get all program leaders
+    $program_leaders = $wpdb->get_results("
+        SELECT DISTINCT u.ID, u.display_name, u.user_email, u.user_registered,
+               prog.meta_value as programme,
+               sites.meta_value as sites
+        FROM {$wpdb->users} u
+        JOIN {$wpdb->usermeta} cap ON u.ID = cap.user_id
+        LEFT JOIN {$wpdb->usermeta} prog ON u.ID = prog.user_id AND prog.meta_key = 'programme'
+        LEFT JOIN {$wpdb->usermeta} sites ON u.ID = sites.user_id AND sites.meta_key = 'sites'
+        WHERE cap.meta_key = '{$wpdb->prefix}capabilities'
+        AND cap.meta_value LIKE '%program-leader%'
+        ORDER BY u.display_name ASC
+    ");
+    
+    $html = '<div class="row">';
+    
+    foreach ($program_leaders as $leader) {
+        // Get sites array
+        $sites = maybe_unserialize($leader->sites);
+        if (!is_array($sites)) {
+            $sites = $sites ? [$sites] : [];
+        }
+        $sites_display = !empty($sites) ? implode(', ', $sites) : __('No sites assigned', 'role-user-manager');
+        
+        // Get subordinates count
+        $subordinates_count = $wpdb->get_var($wpdb->prepare("
+            SELECT COUNT(*) 
+            FROM {$wpdb->usermeta} 
+            WHERE meta_key = 'parent_user_id' 
+            AND meta_value = %d
+        ", $leader->ID));
+        
+        // Get their site data
+        $site_enrollments = 0;
+        $site_completions = 0;
+        
+        if (function_exists('learndash_get_enrolled_users') && !empty($sites)) {
+            // Get users from this leader's sites
+            $site_users = $wpdb->get_col($wpdb->prepare("
+                SELECT DISTINCT user_id 
+                FROM {$wpdb->usermeta} 
+                WHERE meta_key = 'sites' 
+                AND (meta_value LIKE %s" . str_repeat(" OR meta_value LIKE %s", count($sites) - 1) . ")
+            ", array_map(function($site) { return '%' . $site . '%'; }, $sites)));
+            
+            if (!empty($site_users)) {
+                // Count enrollments and completions for these users
+                $courses = get_posts(['post_type' => 'sfwd-courses', 'numberposts' => -1, 'fields' => 'ids']);
+                foreach ($courses as $course_id) {
+                    $enrolled = learndash_get_enrolled_users($course_id);
+                    $enrolled_from_sites = array_intersect($enrolled, $site_users);
+                    $site_enrollments += count($enrolled_from_sites);
+                    
+                    foreach ($enrolled_from_sites as $user_id) {
+                        if (function_exists('learndash_course_completed') && learndash_course_completed($user_id, $course_id)) {
+                            $site_completions++;
+                        }
+                    }
+                }
+            }
+        }
+        
+        $completion_rate = ($site_enrollments > 0) ? round(($site_completions / $site_enrollments) * 100, 1) : 0;
+        
+        $html .= '<div class="col-md-6 mb-3">';
+        $html .= '<div class="program-leader-card">';
+        $html .= '<div class="d-flex justify-content-between align-items-start">';
+        $html .= '<div>';
+        $html .= '<h5>' . esc_html($leader->display_name) . '</h5>';
+        $html .= '<p class="text-muted mb-2">' . esc_html($leader->user_email) . '</p>';
+        $html .= '<p><strong>' . __('Program:', 'role-user-manager') . '</strong> ' . esc_html($leader->programme ?: __('Not assigned', 'role-user-manager')) . '</p>';
+        $html .= '<p><strong>' . __('Sites:', 'role-user-manager') . '</strong> ' . esc_html($sites_display) . '</p>';
+        $html .= '<p><strong>' . __('Team Size:', 'role-user-manager') . '</strong> ' . intval($subordinates_count) . ' ' . __('staff members', 'role-user-manager') . '</p>';
+        $html .= '</div>';
+        $html .= '<div class="text-end">';
+        $html .= '<button class="btn btn-sm btn-outline-info" onclick="viewProgramLeaderDetails(' . intval($leader->ID) . ')">';
+        $html .= __('View Details', 'role-user-manager');
+        $html .= '</button>';
+        $html .= '</div>';
+        $html .= '</div>';
+        $html .= '<hr>';
+        $html .= '<div class="row text-center">';
+        $html .= '<div class="col-4"><strong>' . number_format($site_enrollments) . '</strong><br><small>' . __('Enrollments', 'role-user-manager') . '</small></div>';
+        $html .= '<div class="col-4"><strong>' . number_format($site_completions) . '</strong><br><small>' . __('Completions', 'role-user-manager') . '</small></div>';
+        $html .= '<div class="col-4"><strong>' . $completion_rate . '%</strong><br><small>' . __('Success Rate', 'role-user-manager') . '</small></div>';
+        $html .= '</div>';
+        $html .= '</div>';
+        $html .= '</div>';
+    }
+    
+    $html .= '</div>';
+    
+    if (empty($program_leaders)) {
+        $html = '<div class="alert alert-info">' . __('No Program Leaders found in the system.', 'role-user-manager') . '</div>';
+    }
+    
+    wp_send_json_success(['html' => $html]);
+});
+
+// AJAX handler for site reports data
+add_action('wp_ajax_arc_get_site_reports_data', function() {
+    if (!current_user_can('data-viewer')) wp_send_json_error(['message' => 'Unauthorized']);
+    
+    global $wpdb;
+    
+    // Get all unique sites
+    $sites_data = $wpdb->get_results("
+        SELECT DISTINCT meta_value as sites_serialized
+        FROM {$wpdb->usermeta} 
+        WHERE meta_key = 'sites' 
+        AND meta_value != ''
+    ");
+    
+    $all_sites = [];
+    foreach ($sites_data as $site_row) {
+        $sites = maybe_unserialize($site_row->sites_serialized);
+        if (is_array($sites)) {
+            $all_sites = array_merge($all_sites, $sites);
+        } else {
+            $all_sites[] = $site_row->sites_serialized;
+        }
+    }
+    $unique_sites = array_unique($all_sites);
+    sort($unique_sites);
+    
+    $html = '<div class="row">';
+    
+    foreach ($unique_sites as $site) {
+        if (empty($site)) continue;
+        
+        // Get users for this site
+        $site_users = $wpdb->get_results($wpdb->prepare("
+            SELECT u.ID, u.display_name,
+                   prog.meta_value as programme
+            FROM {$wpdb->users} u
+            JOIN {$wpdb->usermeta} sites ON u.ID = sites.user_id
+            LEFT JOIN {$wpdb->usermeta} prog ON u.ID = prog.user_id AND prog.meta_key = 'programme'
+            WHERE sites.meta_key = 'sites'
+            AND sites.meta_value LIKE %s
+        ", '%' . $site . '%'));
+        
+        $site_enrollments = 0;
+        $site_completions = 0;
+        $programs = [];
+        
+        foreach ($site_users as $user) {
+            if ($user->programme) {
+                $programs[] = $user->programme;
+            }
+            
+            // Count enrollments and completions for this user
+            if (function_exists('learndash_user_get_enrolled_courses')) {
+                $enrolled_courses = learndash_user_get_enrolled_courses($user->ID);
+                $site_enrollments += count($enrolled_courses);
+                
+                foreach ($enrolled_courses as $course_id) {
+                    if (function_exists('learndash_course_completed') && learndash_course_completed($user->ID, $course_id)) {
+                        $site_completions++;
+                    }
+                }
+            }
+        }
+        
+        $unique_programs = array_unique(array_filter($programs));
+        $programs_display = !empty($unique_programs) ? implode(', ', $unique_programs) : __('No programs', 'role-user-manager');
+        $completion_rate = ($site_enrollments > 0) ? round(($site_completions / $site_enrollments) * 100, 1) : 0;
+        
+        $html .= '<div class="col-md-6 mb-3">';
+        $html .= '<div class="site-report-card">';
+        $html .= '<h5>' . esc_html($site) . '</h5>';
+        $html .= '<p><strong>' . __('Programs:', 'role-user-manager') . '</strong> ' . esc_html($programs_display) . '</p>';
+        $html .= '<p><strong>' . __('Staff Count:', 'role-user-manager') . '</strong> ' . count($site_users) . '</p>';
+        $html .= '<div class="row mt-3">';
+        $html .= '<div class="col-3 text-center">';
+        $html .= '<div class="h4 text-primary">' . number_format($site_enrollments) . '</div>';
+        $html .= '<small>' . __('Enrollments', 'role-user-manager') . '</small>';
+        $html .= '</div>';
+        $html .= '<div class="col-3 text-center">';
+        $html .= '<div class="h4 text-success">' . number_format($site_completions) . '</div>';
+        $html .= '<small>' . __('Completions', 'role-user-manager') . '</small>';
+        $html .= '</div>';
+        $html .= '<div class="col-3 text-center">';
+        $html .= '<div class="h4 text-info">' . $completion_rate . '%</div>';
+        $html .= '<small>' . __('Success Rate', 'role-user-manager') . '</small>';
+        $html .= '</div>';
+        $html .= '<div class="col-3 text-center">';
+        $html .= '<button class="btn btn-sm btn-outline-primary" onclick="viewSiteDetails(\'' . esc_js($site) . '\')">';
+        $html .= __('Details', 'role-user-manager');
+        $html .= '</button>';
+        $html .= '</div>';
+        $html .= '</div>';
+        $html .= '</div>';
+        $html .= '</div>';
+    }
+    
+    $html .= '</div>';
+    
+    if (empty($unique_sites)) {
+        $html = '<div class="alert alert-info">' . __('No sites found in the system.', 'role-user-manager') . '</div>';
+    }
+    
+    wp_send_json_success(['html' => $html]);
+});
+
+// AJAX handler for historical data
+add_action('wp_ajax_arc_get_historical_data', function() {
+    if (!current_user_can('data-viewer')) wp_send_json_error(['message' => 'Unauthorized']);
+    
+    global $wpdb;
+    
+    // Get historical enrollment trends (last 12 months)
+    $html = '<div class="row">';
+    $html .= '<div class="col-12 mb-4">';
+    $html .= '<h5>' . __('User Registration Trends (Last 12 Months)', 'role-user-manager') . '</h5>';
+    $html .= '<canvas id="historicalChart" width="400" height="200"></canvas>';
+    $html .= '</div>';
+    $html .= '</div>';
+    
+    // Generate data for chart
+    $monthly_data = [];
+    $labels = [];
+    $registration_data = [];
+    
+    for ($i = 11; $i >= 0; $i--) {
+        $month_start = date('Y-m-01', strtotime("-{$i} months"));
+        $month_end = date('Y-m-t', strtotime("-{$i} months"));
+        $month_label = date('M Y', strtotime("-{$i} months"));
+        
+        $registrations = $wpdb->get_var($wpdb->prepare("
+            SELECT COUNT(*) 
+            FROM {$wpdb->users} 
+            WHERE user_registered BETWEEN %s AND %s
+        ", $month_start . ' 00:00:00', $month_end . ' 23:59:59'));
+        
+        $labels[] = $month_label;
+        $registration_data[] = intval($registrations);
+    }
+    
+    // Historical comparison table
+    $html .= '<div class="row">';
+    $html .= '<div class="col-md-6">';
+    $html .= '<h5>' . __('Year-over-Year Comparison', 'role-user-manager') . '</h5>';
+    $html .= '<div class="table-responsive">';
+    $html .= '<table class="table table-striped">';
+    $html .= '<thead><tr><th>' . __('Period', 'role-user-manager') . '</th><th>' . __('Registrations', 'role-user-manager') . '</th><th>' . __('Change', 'role-user-manager') . '</th></tr></thead>';
+    $html .= '<tbody>';
+    
+    // Current month vs last month
+    $current_month = $wpdb->get_var($wpdb->prepare("
+        SELECT COUNT(*) 
+        FROM {$wpdb->users} 
+        WHERE user_registered BETWEEN %s AND %s
+    ", date('Y-m-01') . ' 00:00:00', date('Y-m-t') . ' 23:59:59'));
+    
+    $last_month = $wpdb->get_var($wpdb->prepare("
+        SELECT COUNT(*) 
+        FROM {$wpdb->users} 
+        WHERE user_registered BETWEEN %s AND %s
+    ", date('Y-m-01', strtotime('-1 month')) . ' 00:00:00', date('Y-m-t', strtotime('-1 month')) . ' 23:59:59'));
+    
+    $monthly_change = ($last_month > 0) ? round((($current_month - $last_month) / $last_month) * 100, 1) : 0;
+    $change_class = $monthly_change >= 0 ? 'text-success' : 'text-danger';
+    $change_icon = $monthly_change >= 0 ? '↗' : '↘';
+    
+    $html .= '<tr>';
+    $html .= '<td>' . __('This Month vs Last Month', 'role-user-manager') . '</td>';
+    $html .= '<td>' . number_format($current_month) . ' / ' . number_format($last_month) . '</td>';
+    $html .= '<td class="' . $change_class . '">' . $change_icon . ' ' . abs($monthly_change) . '%</td>';
+    $html .= '</tr>';
+    
+    $html .= '</tbody></table>';
+    $html .= '</div>';
+    $html .= '</div>';
+    
+    // Role distribution over time
+    $html .= '<div class="col-md-6">';
+    $html .= '<h5>' . __('Current Role Distribution', 'role-user-manager') . '</h5>';
+    $html .= '<canvas id="roleDistributionChart" width="300" height="300"></canvas>';
+    $html .= '</div>';
+    $html .= '</div>';
+    
+    // JavaScript for charts
+    $html .= '<script>';
+    $html .= 'setTimeout(function() {';
+    
+    // Historical trend chart
+    $html .= 'var histCtx = document.getElementById("historicalChart").getContext("2d");';
+    $html .= 'new Chart(histCtx, {';
+    $html .= 'type: "line",';
+    $html .= 'data: {';
+    $html .= 'labels: ' . json_encode($labels) . ',';
+    $html .= 'datasets: [{';
+    $html .= 'label: "' . __('User Registrations', 'role-user-manager') . '",';
+    $html .= 'data: ' . json_encode($registration_data) . ',';
+    $html .= 'borderColor: "#007bff",';
+    $html .= 'backgroundColor: "rgba(0,123,255,0.1)",';
+    $html .= 'tension: 0.4';
+    $html .= '}]},';
+    $html .= 'options: { responsive: true, scales: { y: { beginAtZero: true }}}';
+    $html .= '});';
+    
+    // Role distribution chart
+    $role_counts = $wpdb->get_results("
+        SELECT 
+            CASE 
+                WHEN meta_value LIKE '%program-leader%' THEN 'Program Leader'
+                WHEN meta_value LIKE '%site-supervisor%' THEN 'Site Supervisor'
+                WHEN meta_value LIKE '%frontline-staff%' THEN 'Frontline Staff'
+                WHEN meta_value LIKE '%data-viewer%' THEN 'Data Viewer'
+                ELSE 'Other'
+            END as role,
+            COUNT(*) as count
+        FROM {$wpdb->usermeta}
+        WHERE meta_key = '{$wpdb->prefix}capabilities'
+        GROUP BY role
+    ");
+    
+    $role_labels = array_column($role_counts, 'role');
+    $role_data = array_column($role_counts, 'count');
+    $role_colors = ['#007bff', '#28a745', '#ffc107', '#17a2b8', '#6c757d'];
+    
+    $html .= 'var roleCtx = document.getElementById("roleDistributionChart").getContext("2d");';
+    $html .= 'new Chart(roleCtx, {';
+    $html .= 'type: "pie",';
+    $html .= 'data: {';
+    $html .= 'labels: ' . json_encode($role_labels) . ',';
+    $html .= 'datasets: [{';
+    $html .= 'data: ' . json_encode($role_data) . ',';
+    $html .= 'backgroundColor: ' . json_encode($role_colors) . '';
+    $html .= '}]},';
+    $html .= 'options: { responsive: true }';
+    $html .= '});';
+    
+    $html .= '}, 500);'; // Delay to ensure DOM is ready
+    $html .= '</script>';
+    
+    wp_send_json_success(['html' => $html]);
+});
+
+// AJAX handler for exporting analytics data
+add_action('wp_ajax_arc_export_analytics_data', function() {
+    if (!current_user_can('data-viewer')) wp_send_json_error(['message' => 'Unauthorized']);
+    
+    $date_start = isset($_POST['date_start']) ? sanitize_text_field($_POST['date_start']) : '';
+    $date_end = isset($_POST['date_end']) ? sanitize_text_field($_POST['date_end']) : '';
+    $program = isset($_POST['program']) ? sanitize_text_field($_POST['program']) : '';
+    
+    global $wpdb;
+    
+    // Build filters
+    $date_where = '';
+    if (!empty($date_start) && !empty($date_end)) {
+        $date_where = $wpdb->prepare(" AND user_registered BETWEEN %s AND %s", $date_start . ' 00:00:00', $date_end . ' 23:59:59');
+    }
+    
+    $program_where = '';
+    if (!empty($program)) {
+        $program_where = $wpdb->prepare(" AND ID IN (SELECT user_id FROM {$wpdb->usermeta} WHERE meta_key = 'programme' AND meta_value = %s)", $program);
+    }
+    
+    // Prepare CSV data
+    $csv_data = [];
+    $csv_data[] = [
+        'Report Type',
+        'Metric',
+        'Value',
+        'Date Generated',
+        'Filter Applied'
+    ];
+    
+    // Get user counts by role
+    $users_by_role = $wpdb->get_results("
+        SELECT 
+            CASE 
+                WHEN cap.meta_value LIKE '%program-leader%' THEN 'Program Leader'
+                WHEN cap.meta_value LIKE '%site-supervisor%' THEN 'Site Supervisor'
+                WHEN cap.meta_value LIKE '%frontline-staff%' THEN 'Frontline Staff'
+                WHEN cap.meta_value LIKE '%data-viewer%' THEN 'Data Viewer'
+                ELSE 'Other'
+            END as role,
+            COUNT(*) as count
+        FROM {$wpdb->users} u
+        JOIN {$wpdb->usermeta} cap ON u.ID = cap.user_id
+        WHERE cap.meta_key = '{$wpdb->prefix}capabilities'
+        {$date_where}
+        {$program_where}
+        GROUP BY role
+    ");
+    
+    $filter_text = [];
+    if (!empty($date_start) && !empty($date_end)) {
+        $filter_text[] = "Date: {$date_start} to {$date_end}";
+    }
+    if (!empty($program)) {
+        $filter_text[] = "Program: {$program}";
+    }
+    $filters = !empty($filter_text) ? implode(', ', $filter_text) : 'No filters';
+    
+    // Add role data
+    foreach ($users_by_role as $role_data) {
+        $csv_data[] = [
+            'User Roles',
+            $role_data->role,
+            $role_data->count,
+            date('Y-m-d H:i:s'),
+            $filters
+        ];
+    }
+    
+    // Add enrollment data if LearnDash is available
+    if (function_exists('learndash_get_enrolled_users')) {
+        $total_enrollments = 0;
+        $total_completions = 0;
+        $courses = get_posts(['post_type' => 'sfwd-courses', 'numberposts' => -1, 'fields' => 'ids']);
+        
+        foreach ($courses as $course_id) {
+            $enrolled_users = learndash_get_enrolled_users($course_id);
+            $total_enrollments += count($enrolled_users);
+            
+            foreach ($enrolled_users as $user_id) {
+                if (function_exists('learndash_course_completed') && learndash_course_completed($user_id, $course_id)) {
+                    $total_completions++;
+                }
+            }
+        }
+        
+        $csv_data[] = [
+            'Course Data',
+            'Total Enrollments',
+            $total_enrollments,
+            date('Y-m-d H:i:s'),
+            $filters
+        ];
+        
+        $csv_data[] = [
+            'Course Data',
+            'Total Completions',
+            $total_completions,
+            date('Y-m-d H:i:s'),
+            $filters
+        ];
+        
+        $completion_rate = ($total_enrollments > 0) ? round(($total_completions / $total_enrollments) * 100, 1) : 0;
+        $csv_data[] = [
+            'Course Data',
+            'Completion Rate (%)',
+            $completion_rate,
+            date('Y-m-d H:i:s'),
+            $filters
+        ];
+    }
+    
+    // Add site data
+    $sites_data = $wpdb->get_results("
+        SELECT DISTINCT meta_value as site
+        FROM {$wpdb->usermeta} 
+        WHERE meta_key = 'sites' 
+        AND meta_value != ''
+    ");
+    
+    $unique_sites = [];
+    foreach ($sites_data as $site_row) {
+        $sites = maybe_unserialize($site_row->site);
+        if (is_array($sites)) {
+            $unique_sites = array_merge($unique_sites, $sites);
+        } else {
+            $unique_sites[] = $site_row->site;
+        }
+    }
+    $total_sites = count(array_unique($unique_sites));
+    
+    $csv_data[] = [
+        'Site Data',
+        'Total Sites',
+        $total_sites,
+        date('Y-m-d H:i:s'),
+        $filters
+    ];
+    
+    // Generate CSV content
+    $csv_content = '';
+    foreach ($csv_data as $row) {
+        $csv_content .= '"' . implode('","', array_map(function ($field) {
+            return str_replace('"', '""', strval($field));
+        }, $row)) . '"' . "\n";
+    }
+    
+    // Set headers for download
+    $filename = 'analytics_export_' . date('Y-m-d_H-i-s') . '.csv';
+    
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    
+    echo $csv_content;
+    exit;
+});
+
+// AJAX handler for site detail data
+add_action('wp_ajax_arc_get_site_detail_data', function() {
+    if (!current_user_can('data-viewer')) wp_send_json_error(['message' => 'Unauthorized']);
+    
+    $site_name = isset($_POST['site_name']) ? sanitize_text_field($_POST['site_name']) : '';
+    if (empty($site_name)) {
+        wp_send_json_error(['message' => 'Site name required']);
+    }
+    
+    global $wpdb;
+    
+    // Get detailed users for this site
+    $site_users = $wpdb->get_results($wpdb->prepare("
+        SELECT u.ID, u.display_name, u.user_email, u.user_registered,
+               prog.meta_value as programme,
+               cap.meta_value as capabilities
+        FROM {$wpdb->users} u
+        JOIN {$wpdb->usermeta} sites ON u.ID = sites.user_id
+        LEFT JOIN {$wpdb->usermeta} prog ON u.ID = prog.user_id AND prog.meta_key = 'programme'
+        LEFT JOIN {$wpdb->usermeta} cap ON u.ID = cap.user_id AND cap.meta_key = '{$wpdb->prefix}capabilities'
+        WHERE sites.meta_key = 'sites'
+        AND sites.meta_value LIKE %s
+        ORDER BY u.display_name ASC
+    ", '%' . $site_name . '%'));
+    
+    $html = '<div class="site-details">';
+    $html .= '<h6>' . sprintf(__('Site: %s', 'role-user-manager'), esc_html($site_name)) . '</h6>';
+    
+    if (empty($site_users)) {
+        $html .= '<div class="alert alert-info">' . __('No users found for this site.', 'role-user-manager') . '</div>';
+    } else {
+        // Summary stats
+        $total_enrollments = 0;
+        $total_completions = 0;
+        $role_counts = [];
+        $programs = [];
+        
+        foreach ($site_users as $user) {
+            // Count roles
+            if ($user->capabilities) {
+                if (strpos($user->capabilities, 'program-leader') !== false) {
+                    $role_counts['Program Leader'] = ($role_counts['Program Leader'] ?? 0) + 1;
+                } elseif (strpos($user->capabilities, 'site-supervisor') !== false) {
+                    $role_counts['Site Supervisor'] = ($role_counts['Site Supervisor'] ?? 0) + 1;
+                } elseif (strpos($user->capabilities, 'frontline-staff') !== false) {
+                    $role_counts['Frontline Staff'] = ($role_counts['Frontline Staff'] ?? 0) + 1;
+                } elseif (strpos($user->capabilities, 'data-viewer') !== false) {
+                    $role_counts['Data Viewer'] = ($role_counts['Data Viewer'] ?? 0) + 1;
+                }
+            }
+            
+            // Count programs
+            if ($user->programme) {
+                $programs[] = $user->programme;
+            }
+            
+            // Count enrollments and completions
+            if (function_exists('learndash_user_get_enrolled_courses')) {
+                $enrolled_courses = learndash_user_get_enrolled_courses($user->ID);
+                $total_enrollments += count($enrolled_courses);
+                
+                foreach ($enrolled_courses as $course_id) {
+                    if (function_exists('learndash_course_completed') && learndash_course_completed($user->ID, $course_id)) {
+                        $total_completions++;
+                    }
+                }
+            }
+        }
+        
+        $unique_programs = array_unique(array_filter($programs));
+        $completion_rate = ($total_enrollments > 0) ? round(($total_completions / $total_enrollments) * 100, 1) : 0;
+        
+        // Summary section
+        $html .= '<div class="row mb-4">';
+        $html .= '<div class="col-md-3 text-center">';
+        $html .= '<div class="h4 text-primary">' . count($site_users) . '</div>';
+        $html .= '<small>' . __('Total Staff', 'role-user-manager') . '</small>';
+        $html .= '</div>';
+        $html .= '<div class="col-md-3 text-center">';
+        $html .= '<div class="h4 text-info">' . count($unique_programs) . '</div>';
+        $html .= '<small>' . __('Programs', 'role-user-manager') . '</small>';
+        $html .= '</div>';
+        $html .= '<div class="col-md-3 text-center">';
+        $html .= '<div class="h4 text-success">' . number_format($total_enrollments) . '</div>';
+        $html .= '<small>' . __('Enrollments', 'role-user-manager') . '</small>';
+        $html .= '</div>';
+        $html .= '<div class="col-md-3 text-center">';
+        $html .= '<div class="h4 text-warning">' . $completion_rate . '%</div>';
+        $html .= '<small>' . __('Success Rate', 'role-user-manager') . '</small>';
+        $html .= '</div>';
+        $html .= '</div>';
+        
+        // Programs list
+        if (!empty($unique_programs)) {
+            $html .= '<h6>' . __('Programs at this site:', 'role-user-manager') . '</h6>';
+            $html .= '<p>' . implode(', ', $unique_programs) . '</p>';
+        }
+        
+        // Role breakdown
+        if (!empty($role_counts)) {
+            $html .= '<h6>' . __('Staff by Role:', 'role-user-manager') . '</h6>';
+            $html .= '<div class="row">';
+            foreach ($role_counts as $role => $count) {
+                $html .= '<div class="col-md-3 mb-2">';
+                $html .= '<span class="badge bg-secondary">' . esc_html($role) . ': ' . $count . '</span>';
+                $html .= '</div>';
+            }
+            $html .= '</div>';
+        }
+        
+        // User list
+        $html .= '<h6 class="mt-4">' . __('Staff Members:', 'role-user-manager') . '</h6>';
+        $html .= '<div class="table-responsive">';
+        $html .= '<table class="table table-sm table-striped">';
+        $html .= '<thead><tr>';
+        $html .= '<th>' . __('Name', 'role-user-manager') . '</th>';
+        $html .= '<th>' . __('Email', 'role-user-manager') . '</th>';
+        $html .= '<th>' . __('Program', 'role-user-manager') . '</th>';
+        $html .= '<th>' . __('Role', 'role-user-manager') . '</th>';
+        $html .= '<th>' . __('Registered', 'role-user-manager') . '</th>';
+        $html .= '</tr></thead><tbody>';
+        
+        foreach ($site_users as $user) {
+            $role = 'User';
+            if ($user->capabilities) {
+                if (strpos($user->capabilities, 'program-leader') !== false) {
+                    $role = 'Program Leader';
+                } elseif (strpos($user->capabilities, 'site-supervisor') !== false) {
+                    $role = 'Site Supervisor';
+                } elseif (strpos($user->capabilities, 'frontline-staff') !== false) {
+                    $role = 'Frontline Staff';
+                } elseif (strpos($user->capabilities, 'data-viewer') !== false) {
+                    $role = 'Data Viewer';
+                }
+            }
+            
+            $html .= '<tr>';
+            $html .= '<td>' . esc_html($user->display_name) . '</td>';
+            $html .= '<td>' . esc_html($user->user_email) . '</td>';
+            $html .= '<td>' . esc_html($user->programme ?: '—') . '</td>';
+            $html .= '<td>' . esc_html($role) . '</td>';
+            $html .= '<td>' . date('M j, Y', strtotime($user->user_registered)) . '</td>';
+            $html .= '</tr>';
+        }
+        
+        $html .= '</tbody></table>';
+        $html .= '</div>';
+    }
+    
+    $html .= '</div>';
+    
+    wp_send_json_success(['html' => $html]);
 });
