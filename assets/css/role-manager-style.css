@@ -1,0 +1,253 @@
+/* Role Manager Admin Styles */
+
+.arc-container {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  padding: 24px;
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.arc-header {
+  border-bottom: 1px solid #e5e5e5;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+}
+
+.arc-stats {
+  display: flex;
+  gap: 32px;
+}
+.arc-stat-box {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 12px 24px;
+  text-align: center;
+  min-width: 120px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.arc-stat-number {
+  font-size: 2em;
+  font-weight: bold;
+  color: #2271b1;
+}
+
+.arc-main {
+  display: flex;
+  gap: 32px;
+}
+
+.arc-sidebar {
+  width: 260px;
+  background: #f6f7f7;
+  border-radius: 6px;
+  padding: 18px 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.arc-sidebar h3 {
+  margin-top: 0;
+  font-size: 1.1em;
+  margin-bottom: 12px;
+}
+.arc-new-role {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e5e5;
+}
+.arc-new-role input,
+.arc-new-role select {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 7px 10px;
+  border: 1px solid #ccd0d4;
+  border-radius: 4px;
+  font-size: 1em;
+  background: #fff;
+}
+.arc-new-role button {
+  width: 100%;
+  margin-top: 6px;
+}
+
+#arc-roles-list {
+  margin-top: 10px;
+}
+.arc-role-item {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: box-shadow 0.2s, border 0.2s;
+  position: relative;
+}
+.arc-role-item.active,
+.arc-role-item:hover {
+  border-color: #2271b1;
+  box-shadow: 0 2px 8px rgba(34,113,177,0.08);
+}
+.arc-role-item .button-link {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  color: #d63638;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95em;
+}
+
+.arc-content {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+#arc-role-editor {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 24px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+#arc-no-role-selected {
+  text-align: center;
+  color: #888;
+  padding: 40px 0;
+}
+
+.arc-capability-group {
+  margin-bottom: 28px;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  padding: 16px 18px 10px 18px;
+}
+.arc-capability-group h3 {
+  margin: 0 0 10px 0;
+  font-size: 1.08em;
+  color: #2271b1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.arc-capabilities-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-bottom: 8px;
+}
+.arc-capability-item {
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.arc-capability-item input[type="checkbox"] {
+  accent-color: #2271b1;
+  width: 16px;
+  height: 16px;
+}
+
+.arc-actions {
+  margin: 18px 0 10px 0;
+  display: flex;
+  gap: 12px;
+}
+.arc-actions .button {
+  min-width: 120px;
+}
+
+#arc-notices, .arc-notice, .notice {
+  margin-bottom: 18px;
+}
+.arc-notice, .notice-success {
+  background: #d1e7dd;
+  color: #0f5132;
+  border: 1px solid #badbcc;
+  border-radius: 4px;
+  padding: 10px 16px;
+  font-weight: 500;
+}
+.notice-error {
+  background: #f8d7da;
+  color: #842029;
+  border: 1px solid #f5c2c7;
+  border-radius: 4px;
+  padding: 10px 16px;
+  font-weight: 500;
+}
+
+/* Loading overlay */
+.arc-content.arc-loading:after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255,255,255,0.7);
+  z-index: 10;
+}
+
+/* Accessibility: Focus outlines for interactive elements */
+button:focus, .button:focus, a:focus, input[type="checkbox"]:focus {
+  outline: 2px solid #2271b1;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px #b6e0fe;
+}
+
+/* Improved color contrast for sidebar/group headers */
+.arc-sidebar h3, .arc-capability-group h3 {
+  color: #1a365d;
+}
+
+/* Tooltip style for [title] attributes */
+[title]:hover:after, [title]:focus:after {
+  content: attr(title);
+  position: absolute;
+  background: #222;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: pre;
+  z-index: 1000;
+  left: 100%;
+  top: 0;
+  margin-left: 8px;
+  pointer-events: none;
+}
+
+/* Responsive table wrapper */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .arc-main {
+    flex-direction: column;
+    gap: 0;
+  }
+  .arc-sidebar {
+    width: 100%;
+    margin-bottom: 18px;
+  }
+}
+
+@media (max-width: 600px) {
+  .arc-container {
+    padding: 10px;
+  }
+  #arc-role-editor {
+    padding: 10px;
+  }
+  .arc-capability-group {
+    padding: 10px 6px 6px 6px;
+  }
+  .arc-capability-item {
+    min-width: 120px;
+  }
+}
