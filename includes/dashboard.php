@@ -554,7 +554,16 @@ function plugin_dashboard_shortcode(): string
                 </div>
                 <div class="row mt-3">
                     <div class="col-12">
-                        <input type="text" id="user_search" name="user_search" class="form-control" placeholder="Search users by name, email, or role...">
+                        <label for="user_search" class="form-label"><?php esc_html_e('Search Users', 'role-user-manager'); ?></label>
+                        <div class="search-container">
+                            <input type="text" id="user_search" name="user_search" class="form-control" 
+                                placeholder="<?php esc_attr_e('Search by name, role, parent, program, or site...', 'role-user-manager'); ?>"
+                                autocomplete="off">
+                            <button type="button" class="clear-search" title="<?php esc_attr_e('Clear search', 'role-user-manager'); ?>" tabindex="-1">×</button>
+                        </div>
+                        <small class="form-text text-muted">
+                            <?php esc_html_e('Use keywords to filter the user list in real-time. Press Escape to clear.', 'role-user-manager'); ?>
+                        </small>
                     </div>
                 </div>
                 <div class="row mt-3">
@@ -871,6 +880,100 @@ function plugin_dashboard_shortcode(): string
             
             #users-table-container {
                 position: relative;
+            }
+            
+            /* Search functionality styles */
+            #user_search {
+                position: relative;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%236c757d' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E");
+                background-repeat: no-repeat;
+                background-position: 12px center;
+                background-size: 16px;
+                padding-left: 40px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                transition: all 0.3s ease;
+            }
+            
+            #user_search:focus {
+                border-color: #007bff;
+                box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+                outline: 0;
+            }
+            
+            #user_search::placeholder {
+                color: #6c757d;
+                font-style: italic;
+            }
+            
+            #search-results-info {
+                border-left: 4px solid #17a2b8;
+                background-color: #d1ecf1;
+                border-color: #bee5eb;
+                animation: slideInDown 0.3s ease-out;
+            }
+            
+            @keyframes slideInDown {
+                from {
+                    opacity: 0;
+                    transform: translateY(-10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            
+            /* Hide search results smoothly */
+            .users-table tbody tr {
+                transition: opacity 0.2s ease;
+            }
+            
+            .users-table tbody tr[style*="display: none"] {
+                opacity: 0;
+            }
+            
+            /* Search highlight styles */
+            .search-highlight {
+                background-color: #fff3cd;
+                border-radius: 3px;
+                padding: 1px 3px;
+                font-weight: 500;
+            }
+            
+            /* Improved search input container */
+            .search-container {
+                position: relative;
+                display: inline-block;
+                width: 100%;
+            }
+            
+            .search-container .clear-search {
+                position: absolute;
+                right: 10px;
+                top: 50%;
+                transform: translateY(-50%);
+                background: none;
+                border: none;
+                color: #6c757d;
+                cursor: pointer;
+                font-size: 18px;
+                padding: 0;
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                display: none;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .search-container .clear-search:hover {
+                background-color: #f8f9fa;
+                color: #495057;
+            }
+            
+            .search-container.has-content .clear-search {
+                display: flex;
             }
         </style>
 
@@ -1242,13 +1345,14 @@ function plugin_dashboard_shortcode(): string
                     button.innerHTML = originalText;
                 });
             }
-            // Bulk select all
+            // Bulk select all (search-aware)
             var bulkSelectAll = document.getElementById('bulk-select-all');
             if (bulkSelectAll) {
                 bulkSelectAll.addEventListener('change', function () {
-                    var checkboxes = document.querySelectorAll('.bulk-checkbox');
-                    for (var i = 0; i < checkboxes.length; i++) {
-                        checkboxes[i].checked = this.checked;
+                    // Only select visible checkboxes (not hidden by search)
+                    var visibleCheckboxes = document.querySelectorAll('.users-table tbody tr:not([style*="display: none"]) .bulk-checkbox');
+                    for (var i = 0; i < visibleCheckboxes.length; i++) {
+                        visibleCheckboxes[i].checked = this.checked;
                     }
                 });
             }
@@ -1443,6 +1547,201 @@ function plugin_dashboard_shortcode(): string
                         '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
                     filterForm.querySelector('.filter-controls').appendChild(filterInfo);
                 }
+
+                // Search functionality
+                var searchInput = document.getElementById('user_search');
+                var searchContainer = document.querySelector('.search-container');
+                var clearSearchBtn = document.querySelector('.clear-search');
+                
+                if (searchInput) {
+                    let searchTimeout;
+                    
+                    // Add real-time search with debouncing
+                    searchInput.addEventListener('input', function() {
+                        clearTimeout(searchTimeout);
+                        var searchTerm = this.value.toLowerCase().trim();
+                        
+                        // Toggle clear button visibility
+                        if (searchContainer) {
+                            if (this.value.length > 0) {
+                                searchContainer.classList.add('has-content');
+                            } else {
+                                searchContainer.classList.remove('has-content');
+                            }
+                        }
+                        
+                        // Debounce search to avoid excessive filtering
+                        searchTimeout = setTimeout(function() {
+                            filterUsersRealTime(searchTerm);
+                        }, 300);
+                    });
+                    
+                    // Clear search when escape key is pressed
+                    searchInput.addEventListener('keyup', function(e) {
+                        if (e.key === 'Escape') {
+                            clearSearchFunction();
+                        }
+                    });
+                    
+                    // Handle Enter key to prevent form submission
+                    searchInput.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                        }
+                    });
+                }
+                
+                // Clear search button functionality
+                if (clearSearchBtn) {
+                    clearSearchBtn.addEventListener('click', function() {
+                        clearSearchFunction();
+                    });
+                }
+                
+                function clearSearchFunction() {
+                    if (searchInput) {
+                        searchInput.value = '';
+                        searchInput.focus();
+                        if (searchContainer) {
+                            searchContainer.classList.remove('has-content');
+                        }
+                        filterUsersRealTime('');
+                    }
+                }
+                
+                function filterUsersRealTime(searchTerm) {
+                    var tableRows = document.querySelectorAll('.users-table tbody tr');
+                    var visibleCount = 0;
+                    var totalCount = tableRows.length;
+                    
+                    tableRows.forEach(function(row) {
+                        var shouldShow = true;
+                        var cells = row.querySelectorAll('td');
+                        
+                        // Clear any existing highlights first
+                        cells.forEach(function(cell) {
+                            if (cell.querySelector('.search-highlight')) {
+                                cell.innerHTML = cell.textContent;
+                            }
+                        });
+                        
+                        if (searchTerm && searchTerm.length >= 2) {
+                            var rowText = '';
+                            var searchableColumns = [1, 2, 3, 4, 5]; // Name, Role, Parent, Program, Site
+                            
+                            // Build searchable text from relevant columns
+                            if (cells.length >= 6) {
+                                searchableColumns.forEach(function(index) {
+                                    rowText += (cells[index].textContent || '').toLowerCase() + ' ';
+                                });
+                                
+                                // Also check user ID if available
+                                var checkbox = row.querySelector('input[name="bulk_users[]"]');
+                                if (checkbox) {
+                                    rowText += checkbox.value + ' ';
+                                }
+                            }
+                            
+                            shouldShow = rowText.includes(searchTerm);
+                            
+                            // Add highlighting to matching cells
+                            if (shouldShow) {
+                                searchableColumns.forEach(function(index) {
+                                    if (cells[index]) {
+                                        var cellText = cells[index].textContent;
+                                        var cellTextLower = cellText.toLowerCase();
+                                        
+                                        if (cellTextLower.includes(searchTerm)) {
+                                            var regex = new RegExp('(' + escapeRegExp(searchTerm) + ')', 'gi');
+                                            var highlightedText = cellText.replace(regex, '<span class="search-highlight">$1</span>');
+                                            cells[index].innerHTML = highlightedText;
+                                        }
+                                    }
+                                });
+                            }
+                        } else if (searchTerm && searchTerm.length === 1) {
+                            // For single character searches, be more restrictive (match start of words)
+                            var rowText = '';
+                            if (cells.length >= 6) {
+                                for (var i = 1; i <= 5; i++) {
+                                    rowText += (cells[i].textContent || '').toLowerCase() + ' ';
+                                }
+                            }
+                            
+                            // Match start of words
+                            var words = rowText.split(' ');
+                            shouldShow = words.some(function(word) {
+                                return word.startsWith(searchTerm);
+                            });
+                        }
+                        
+                        if (shouldShow) {
+                            row.style.display = '';
+                            visibleCount++;
+                        } else {
+                            row.style.display = 'none';
+                        }
+                    });
+                    
+                    // Update search results info
+                    updateSearchResultsInfo(visibleCount, totalCount, searchTerm);
+                    
+                    // Update bulk select all functionality for filtered results
+                    updateBulkSelectForFilteredResults();
+                }
+                
+                // Helper function to escape regex special characters
+                function escapeRegExp(string) {
+                    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                }
+                
+                function updateSearchResultsInfo(visibleCount, totalCount, searchTerm) {
+                    var infoElement = document.querySelector('.filter-controls .ms-3.text-muted');
+                    if (infoElement) {
+                        var baseText = infoElement.textContent;
+                        if (searchTerm) {
+                            // Show search results
+                            var searchInfo = document.getElementById('search-results-info');
+                            if (!searchInfo) {
+                                searchInfo = document.createElement('div');
+                                searchInfo.id = 'search-results-info';
+                                searchInfo.className = 'mt-2 alert alert-info';
+                                infoElement.parentNode.appendChild(searchInfo);
+                            }
+                            searchInfo.innerHTML = '<strong><?php esc_html_e('Search Results:', 'role-user-manager'); ?></strong> ' + 
+                                visibleCount + ' <?php esc_html_e('of', 'role-user-manager'); ?> ' + totalCount + 
+                                ' <?php esc_html_e('users match', 'role-user-manager'); ?> "<em>' + searchTerm + '</em>"' +
+                                ' <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="clearSearch()"><?php esc_html_e('Clear Search', 'role-user-manager'); ?></button>';
+                        } else {
+                            // Remove search info if no search term
+                            var searchInfo = document.getElementById('search-results-info');
+                            if (searchInfo) {
+                                searchInfo.remove();
+                            }
+                        }
+                    }
+                }
+                
+                function updateBulkSelectForFilteredResults() {
+                    var bulkSelectAll = document.getElementById('bulk-select-all');
+                    if (bulkSelectAll) {
+                        // Remove existing listeners to avoid duplicates
+                        var newBulkSelectAll = bulkSelectAll.cloneNode(true);
+                        bulkSelectAll.parentNode.replaceChild(newBulkSelectAll, bulkSelectAll);
+                        
+                        newBulkSelectAll.addEventListener('change', function () {
+                            var visibleCheckboxes = document.querySelectorAll('.users-table tbody tr:not([style*="display: none"]) .bulk-checkbox');
+                            for (var i = 0; i < visibleCheckboxes.length; i++) {
+                                visibleCheckboxes[i].checked = this.checked;
+                            }
+                        });
+                    }
+                }
+                
+                // Global function to clear search (called from clear button in search results)
+                window.clearSearch = function() {
+                    clearSearchFunction();
+                };
 
                 // Export functionality
                 var exportBtn = document.getElementById('export-users-btn');
