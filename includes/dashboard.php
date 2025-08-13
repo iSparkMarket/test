@@ -3,6 +3,18 @@ declare(strict_types=1);
 
 defined('ABSPATH') || exit;
 
+// Helper: verify AJAX nonce from multiple possible param names and actions
+function arc_verify_ajax_nonce(): bool {
+    $nonce = $_REQUEST['_wpnonce'] ?? $_REQUEST['nonce'] ?? $_REQUEST['security'] ?? '';
+    if (empty($nonce)) {
+        return false;
+    }
+    return (bool) (
+        wp_verify_nonce($nonce, 'arc_dashboard_nonce') ||
+        wp_verify_nonce($nonce, 'dashboard_nonce')
+    );
+}
+
 // Capture filter parameters from the URL (GET method)
 $filter_site = sanitize_text_field($_GET['filter_site'] ?? '');
 $filter_program = sanitize_text_field($_GET['filter_program'] ?? '');
@@ -261,43 +273,53 @@ add_shortcode('plugin_dashboard', 'plugin_dashboard_shortcode');
 function plugin_dashboard_shortcode(): string
 {
     // Ensure required roles exist
-    $required_roles = [
-        'data-viewer' => __('Data Viewer', 'role-user-manager'),
-        'program-leader' => __('Program Leader', 'role-user-manager'),
-        'site-supervisor' => __('Site Supervisor', 'role-user-manager'),
-        'frontline-staff' => __('Frontline Staff', 'role-user-manager'),
-    ];
-    foreach ($required_roles as $role_key => $role_name) {
-        if (!get_role($role_key)) {
-            add_role($role_key, $role_name, ['read' => true]);
-        }
-        
-        // Add group_leader capability to specific roles for certificate access
-        if (in_array($role_key, ['data-viewer', 'program-leader', 'site-supervisor'])) {
-            $role = get_role($role_key);
-            if ($role && !$role->has_cap('group_leader')) {
-                $role->add_cap('group_leader');
-            }
-        }
-    }
-    // Set up default parent/child relationships if not already set
-    $hierarchy = get_option('arc_role_hierarchy', []);
-    $changed = false;
-    if (!isset($hierarchy['site-supervisor']) || $hierarchy['site-supervisor'] !== 'program-leader') {
-        $hierarchy['site-supervisor'] = 'program-leader';
-        $changed = true;
-    }
-    if (!isset($hierarchy['frontline-staff']) || $hierarchy['frontline-staff'] !== 'site-supervisor') {
-        $hierarchy['frontline-staff'] = 'site-supervisor';
-        $changed = true;
-    }
-    if ($changed) {
-        update_option('arc_role_hierarchy', $hierarchy);
+$required_roles = [
+    'data-viewer'     => __('Data Viewer', 'role-user-manager'),
+    'program-leader'  => __('Program Leader', 'role-user-manager'),
+    'site-supervisor' => __('Site Supervisor', 'role-user-manager'),
+    'frontline-staff' => __('Frontline Staff', 'role-user-manager'),
+];
+
+$group_leader_role = get_role('group_leader');
+
+foreach ($required_roles as $role_key => $role_name) {
+    // Create role if it doesn't exist
+    if (!get_role($role_key)) {
+        add_role($role_key, $role_name, ['read' => true]);
     }
 
-    if (!is_user_logged_in()) {
-        return 'You must be logged in to access this page. <a href="' . wp_login_url() . '">Login here</a>';
+    // Copy group_leader capabilities to specific roles
+    if (in_array($role_key, ['data-viewer', 'program-leader', 'site-supervisor']) && $group_leader_role) {
+        $role = get_role($role_key);
+        foreach ($group_leader_role->capabilities as $cap => $grant) {
+            $role->add_cap($cap, $grant);
+        }
     }
+}
+
+// Set up default parent/child relationships
+$hierarchy = get_option('arc_role_hierarchy', []);
+$changed = false;
+
+if (!isset($hierarchy['site-supervisor']) || $hierarchy['site-supervisor'] !== 'program-leader') {
+    $hierarchy['site-supervisor'] = 'program-leader';
+    $changed = true;
+}
+
+if (!isset($hierarchy['frontline-staff']) || $hierarchy['frontline-staff'] !== 'site-supervisor') {
+    $hierarchy['frontline-staff'] = 'site-supervisor';
+    $changed = true;
+}
+
+if ($changed) {
+    update_option('arc_role_hierarchy', $hierarchy);
+}
+
+// Force login if not logged in
+if (!is_user_logged_in()) {
+    return 'You must be logged in to access this page. <a href="' . wp_login_url() . '">Login here</a>';
+}
+
 
     $current_user = wp_get_current_user();
     $user_name = $current_user->display_name ?: 'Demo User';
@@ -572,7 +594,7 @@ function plugin_dashboard_shortcode(): string
                             class="btn btn-primary"><?php esc_html_e('Apply Filters', 'role-user-manager'); ?></button>
                         <a href="<?php echo esc_url(remove_query_arg(['filter_program', 'filter_site', 'filter_training_status', 'filter_date_start', 'filter_date_end', 'paged'])); ?>"
                             class="btn btn-secondary"><?php esc_html_e('Clear Filters', 'role-user-manager'); ?></a>
-                        <?php if (in_array('administrator', $user_roles) || in_array('program-leader', $user_roles)): ?>
+                        <?php if (in_array('administrator', $user_roles) || in_array('program-leader', $user_roles) || in_array('data-viewer', $user_roles)): ?>
                             <button type="button" id="export-users-btn" class="btn btn-success ms-2">
                                 📥 <?php esc_html_e('Export Users', 'role-user-manager'); ?>
                             </button>
@@ -975,6 +997,15 @@ function plugin_dashboard_shortcode(): string
             .search-container.has-content .clear-search {
                 display: flex;
             }
+				.tablediv {
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: scroll;
+}
+
+.tablediv th ,.tablediv td {
+    padding: 9px 5px !important;
+}
         </style>
 
            
@@ -1027,8 +1058,8 @@ function plugin_dashboard_shortcode(): string
                                                     ?>
                                                     <button type="button" class="btn btn-edit"
                                                             data-user-id="<?php echo intval($user['id']); ?>"><?php esc_html_e('Edit', 'role-user-manager'); ?></button>
-                                                    <button type="button" class="btn btn-remove"
-                                                            data-user-id="<?php echo intval($user['id']); ?>"><?php esc_html_e('Remove', 'role-user-manager'); ?></button>
+                                                    <!-- <button type="button" class="btn btn-remove"
+                                                            data-user-id="<?php //echo intval($user['id']); ?>"><?php //esc_html_e('Remove', 'role-user-manager'); ?></button> -->
                                                     <?php
                                                     }
                                                    
@@ -1828,6 +1859,11 @@ function plugin_dashboard_shortcode(): string
                                 params += '&' + key + '=' + encodeURIComponent(filterData[key]);
                             }
                         }
+                        // Include current search term so export matches visible results
+                        var exportSearchEl = document.getElementById('user_search');
+                        if (exportSearchEl && exportSearchEl.value && exportSearchEl.value.trim()) {
+                            params += '&user_search=' + encodeURIComponent(exportSearchEl.value.trim());
+                        }
                         xhr.send(params);
                     });
                 }
@@ -1895,7 +1931,9 @@ function plugin_dashboard_shortcode(): string
 function arc_get_user_ld_data_handler()
 {
     // Security checks
-    check_ajax_referer('arc_dashboard_nonce');
+    if (!arc_verify_ajax_nonce()) {
+        wp_send_json_error(['message' => 'Security check failed.']);
+    }
 
     if (!is_user_logged_in()) {
         wp_send_json_error(['message' => 'User not logged in.']);
@@ -2056,7 +2094,8 @@ function arc_get_user_ld_data_handler()
                     continue;
 
                 $points = get_post_meta($course_id, 'course_points', true);
-                $hours = get_post_meta($course_id, 'course_hours', true);
+                $hours = get_post_meta($course_id, '_learndash_course_grid_duration', true);
+				$hours = $hours ? intval($hours) : 1;
                 $total_points += floatval($points);
                 $total_hours += floatval($hours);
 
@@ -2077,14 +2116,14 @@ function arc_get_user_ld_data_handler()
 
                 $course_rows .= '<tr>';
                 $course_rows .= '<td>' . esc_html($course->post_title) . '</td>';
-                $course_rows .= '<td>' . esc_html($hours ?: '0') . '</td>';
+                $course_rows .= '<td>' . esc_html(round($hours/3600 ?: '0')) . '</td>';
                 $course_rows .= '<td>' . esc_html($points ?: '0') . '</td>';
                 $course_rows .= '<td>' . ($completed ? '<span class="badge bg-success">Completed</span>' : '<span class="badge bg-warning">' . $completion_percentage . '%</span>') . '</td>';
                 // If data-viewer, do not show Remove button
                 if ($is_data_viewer) {
                     $course_rows .= '<td><span class="text-muted">N/A</span></td>';
                 } else {
-                    $course_rows .= '<td><button class="btn btn-sm btn-danger" onclick="removeUserFromCourse(' . intval($user_id) . ',' . intval($course_id) . ')">' . __('Remove', 'role-user-manager') . '</button></td>';
+                    // $course_rows .= '<td><button class="btn btn-sm btn-danger" onclick="removeUserFromCourse(' . intval($user_id) . ',' . intval($course_id) . ')">' . __('Remove', 'role-user-manager') . '</button></td>';
                 }
                 $course_rows .= '</tr>';
             }
@@ -2093,11 +2132,11 @@ function arc_get_user_ld_data_handler()
     // Build courses section
     $html .= '<h6>' . __('Enrolled Courses', 'role-user-manager') . ' (' . count($courses) . ')</h6>';
     if (!empty($courses)) {
-        $html .= '<table class="table table-sm">';
+        $html .= '<div class="tablediv"><table class="table table-sm">';
         $html .= '<thead><tr><th>' . __('Course', 'role-user-manager') . '</th><th>' . __('Hours', 'role-user-manager') . '</th><th>' . __('Points', 'role-user-manager') . '</th><th>' . __('Status', 'role-user-manager') . '</th><th>' . __('Action', 'role-user-manager') . '</th></tr></thead>';
         $html .= '<tbody>' . $course_rows . '</tbody>';
-        $html .= '</table>';
-        $html .= '<div class="row"><div class="col-md-6"><strong>' . __('Total Hours:', 'role-user-manager') . '</strong> ' . esc_html($total_hours) . '</div><div class="col-md-6"><strong>' . __('Total Points:', 'role-user-manager') . '</strong> ' . esc_html($total_points) . '</div></div>';
+        $html .= '</table></div>';
+        $html .= '<div class="row"><div class="col-md-6"><strong>' . __('Total Hours:', 'role-user-manager') . '</strong> ' . esc_html(round($total_hours/3600)) . '</div><div class="col-md-6"><strong>' . __('Total Points:', 'role-user-manager') . '</strong> ' . esc_html($total_points) . '</div></div>';
     } else {
         $html .= '<p class="text-muted">' . __('No courses enrolled.', 'role-user-manager') . '</p>';
     }
@@ -2148,7 +2187,9 @@ add_action('wp_ajax_arc_get_user_ld_data', 'arc_get_user_ld_data_handler');
 function arc_remove_user_from_course_handler()
 {
     // Security checks
-    check_ajax_referer('arc_dashboard_nonce');
+    if (!arc_verify_ajax_nonce()) {
+        wp_send_json_error(['message' => 'Security check failed.']);
+    }
 
     if (!is_user_logged_in()) {
         wp_send_json_error(['message' => 'User not logged in.']);
@@ -2234,7 +2275,7 @@ function arc_export_users_handler()
     $user_roles = array_map('strtolower', $current_user->roles);
 
     // Only allow program-leader or administrator to export
-    if (!in_array('administrator', $user_roles) && !in_array('program-leader', $user_roles)) {
+    if (!in_array('administrator', $user_roles) && !in_array('program-leader', $user_roles) && !in_array('data-viewer', $user_roles)) {
         wp_send_json_error(['message' => 'Insufficient permissions.']);
     }
 
@@ -2248,8 +2289,8 @@ function arc_export_users_handler()
     // Get all users and apply filters (same logic as dashboard)
     $all_users = get_users(['orderby' => 'display_name', 'order' => 'ASC', 'fields' => 'all']);
 
-    // For administrators, use all users; for others, use descendants only
-    if (in_array('administrator', $user_roles)) {
+    // For administrators or data-viewers, use all users; others use descendants only
+    if (in_array('administrator', $user_roles) || in_array('data-viewer', $user_roles)) {
         $users_to_filter = $all_users;
     } else {
         $descendant_ids = arc_get_descendant_user_ids($current_user->ID, $all_users);
@@ -2259,7 +2300,9 @@ function arc_export_users_handler()
     }
 
     // Apply filters to users
-    $filtered_users = array_filter($users_to_filter, function ($user) use ($filter_program, $filter_site, $filter_training_status, $filter_date_start, $filter_date_end) {
+    // Support both POST and GET for search term, to be robust
+    $user_search = isset($_REQUEST['user_search']) ? sanitize_text_field($_REQUEST['user_search']) : '';
+    $filtered_users = array_filter($users_to_filter, function ($user) use ($filter_program, $filter_site, $filter_training_status, $filter_date_start, $filter_date_end, $user_search) {
         // Filter by program
         if (!empty($filter_program)) {
             $user_program = get_user_meta($user->ID, 'programme', true);
@@ -2291,8 +2334,74 @@ function arc_export_users_handler()
             return false;
         }
 
+        // Filter by search (match table’s client-side logic)
+        if (!empty($user_search)) {
+            $search = mb_strtolower($user_search);
+            $parent_id = get_user_meta($user->ID, 'parent_user_id', true);
+            $parent_name = $parent_id ? get_user_by('id', $parent_id)->display_name : '';
+            $program = get_user_meta($user->ID, 'programme', true);
+            $sites = get_user_meta($user->ID, 'sites', true);
+            if (!is_array($sites)) { $sites = []; }
+            $site_display = !empty($sites) ? implode(', ', array_map('trim', $sites)) : '';
+
+            $haystack = mb_strtolower(trim(
+                $user->display_name . ' ' .
+                implode(', ', $user->roles) . ' ' .
+                $parent_name . ' ' .
+                $program . ' ' .
+                $site_display
+            ));
+
+            if ($search !== '' && mb_strpos($haystack, $search) === false) {
+                return false;
+            }
+        }
+
         return true;
     });
+
+    // Order filtered users so that users appear under their parent user
+    $filtered_users = array_values($filtered_users);
+    $user_ids_set = [];
+    foreach ($filtered_users as $u) { $user_ids_set[$u->ID] = true; }
+
+    $children_map = [];
+    $parent_of = [];
+    foreach ($filtered_users as $u) {
+        $pid = intval(get_user_meta($u->ID, 'parent_user_id', true));
+        $parent_of[$u->ID] = $pid;
+        if ($pid > 0 && isset($user_ids_set[$pid])) {
+            if (!isset($children_map[$pid])) { $children_map[$pid] = []; }
+            $children_map[$pid][] = $u->ID;
+        }
+    }
+
+    $ordered_users = [];
+    $visited = [];
+    $by_id = [];
+    foreach ($filtered_users as $u) { $by_id[$u->ID] = $u; }
+
+    $add_with_children = function($id) use (&$add_with_children, &$ordered_users, &$visited, $children_map, $by_id) {
+        if (isset($visited[$id])) { return; }
+        $visited[$id] = true;
+        if (isset($by_id[$id])) { $ordered_users[] = $by_id[$id]; }
+        if (!empty($children_map[$id])) {
+            foreach ($children_map[$id] as $child_id) {
+                $add_with_children($child_id);
+            }
+        }
+    };
+
+    foreach ($filtered_users as $u) {
+        $pid = $parent_of[$u->ID] ?? 0;
+        if ($pid <= 0 || !isset($user_ids_set[$pid])) {
+            $add_with_children($u->ID);
+        }
+    }
+
+    foreach ($filtered_users as $u) {
+        if (!isset($visited[$u->ID])) { $add_with_children($u->ID); }
+    }
 
     // Prepare CSV data
     $csv_data = [];
@@ -2308,7 +2417,7 @@ function arc_export_users_handler()
         'Registration Date'
     ];
 
-    foreach ($filtered_users as $user) {
+    foreach ($ordered_users as $user) {
         $parent_id = get_user_meta($user->ID, 'parent_user_id', true);
         $program = get_user_meta($user->ID, 'programme', true);
         $site = get_user_meta($user->ID, 'sites', true);
@@ -2391,7 +2500,7 @@ function arc_promote_user_direct_handler()
     }
 
     // Verify nonce
-    if (!check_ajax_referer('arc_dashboard_nonce', 'nonce', false)) {
+    if (!check_ajax_referer('arc_dashboard_nonce', 'nonce', false) && !check_ajax_referer('arc_dashboard_nonce', '_wpnonce', false)) {
         wp_send_json_error(['message' => 'Security check failed']);
         return;
     }
@@ -2457,71 +2566,94 @@ function arc_promote_user_direct_handler()
 add_action('wp_ajax_rum_promote_user_direct', 'arc_promote_user_direct_handler');
 
 // AJAX handler for submitting promotion requests
-function arc_submit_promotion_request_handler()
-{
+function arc_submit_promotion_request_handler() {
     // Check if user is logged in
     if (!is_user_logged_in()) {
-        wp_send_json_error(['message' => 'User not logged in']);
-        return;
+        wp_send_json_error([
+            'message' => 'User not logged in',
+            'reason'  => 'Authentication required'
+        ]);
     }
 
     // Verify nonce
-    if (!check_ajax_referer('arc_dashboard_nonce', 'nonce', false)) {
-        wp_send_json_error(['message' => 'Security check failed']);
-        return;
+    if (!check_ajax_referer('arc_dashboard_nonce', 'nonce', false) && !check_ajax_referer('arc_dashboard_nonce', '_wpnonce', false)) {
+        wp_send_json_error([
+            'message' => 'Security check failed',
+            'reason'  => 'Invalid or missing nonce'
+        ]);
     }
 
-    $user_id = intval($_POST['user_id']);
+    $user_id        = intval($_POST['user_id']);
     $requested_role = sanitize_text_field($_POST['requested_role']);
-    $reason = sanitize_textarea_field($_POST['reason']);
+    $reason         = sanitize_textarea_field($_POST['reason']);
 
     $current_user = wp_get_current_user();
-    $user = get_user_by('id', $user_id);
-    
+    $user         = get_user_by('id', $user_id);
+
     if (!$user) {
-        wp_send_json_error(['message' => __('User not found.', 'role-user-manager')]);
+        wp_send_json_error([
+            'message' => __('User not found.', 'role-user-manager'),
+            'reason'  => "User ID {$user_id} does not exist"
+        ]);
     }
 
-    $workflow = new RoleAssignmentWorkflow();
+    $workflow     = new RoleAssignmentWorkflow();
     $current_role = $workflow->get_user_primary_role($user_id);
-    
-    // Debug logging for validation
-    error_log("=== PROMOTION VALIDATION DEBUG ===");
-    error_log("Current User ID: " . $current_user->ID);
-    error_log("Current User Roles: " . implode(', ', $current_user->roles));
-    error_log("Target User ID: " . $user_id);
-    error_log("Target User Roles: " . implode(', ', $user->roles));
-    error_log("Current Role: " . $current_role);
-    error_log("Requested Role: " . $requested_role);
-    
+
+    // Debug info for frontend
+    $debug_data = [
+        'current_user_id'   => $current_user->ID,
+        'current_user_roles'=> $current_user->roles,
+        'target_user_id'    => $user_id,
+        'target_user_roles' => $user->roles,
+        'current_role'      => $current_role,
+        'requested_role'    => $requested_role
+    ];
+
     // Validate promotion request
     $validation = $workflow->validate_promotion_request($current_user, $user, $current_role, $requested_role);
-    error_log("Validation Result: " . json_encode($validation));
-    
+
     if (!$validation['valid']) {
-        error_log("Validation FAILED: " . $validation['message']);
-        wp_send_json_error(['message' => $validation['message']]);
+        wp_send_json_error([
+            'message' => $validation['message'],
+            'reason'  => 'Validation failed',
+            'debug'   => $debug_data
+        ]);
     }
-    
-    error_log("Validation PASSED");
 
     // Check if request already exists
     if ($workflow->has_pending_request($user_id, $requested_role)) {
-        wp_send_json_error(['message' => __('A promotion request for this user and role already exists.', 'role-user-manager')]);
+        wp_send_json_error([
+            'message' => __('A promotion request for this user and role already exists.', 'role-user-manager'),
+            'reason'  => 'Duplicate request',
+            'debug'   => $debug_data
+        ]);
     }
 
     // Create the request
-    $request_id = $workflow->create_promotion_request($current_user->ID, $user_id, $current_role, $requested_role, $reason);
-    
+    $request_id = $workflow->create_promotion_request(
+        $current_user->ID,
+        $user_id,
+        $current_role,
+        $requested_role,
+        $reason
+    );
+
     if ($request_id) {
         wp_send_json_success([
-            'message' => __('Promotion request submitted successfully.', 'role-user-manager'),
-            'request_id' => $request_id
+            'message'    => __('Promotion request submitted successfully.', 'role-user-manager'),
+            'request_id' => $request_id,
+            'debug'      => $debug_data
         ]);
     } else {
-        wp_send_json_error(['message' => __('Failed to submit promotion request.', 'role-user-manager')]);
+        wp_send_json_error([
+            'message' => __('Failed to submit promotion request.', 'role-user-manager'),
+            'reason'  => 'Database insert failed',
+            'debug'   => $debug_data
+        ]);
     }
 }
+
 add_action('wp_ajax_rum_submit_promotion_request', 'arc_submit_promotion_request_handler');
 
 // Helper function: Generate valid certificate links for any user
@@ -2729,7 +2861,9 @@ function arc_generate_user_certificate_links($user_id, $current_user_id = null) 
 // AJAX handler for generating certificate links
 function arc_generate_certificate_links_handler() {
     // Security checks
-    check_ajax_referer('arc_dashboard_nonce');
+    if (!arc_verify_ajax_nonce()) {
+        wp_send_json_error(['message' => 'Security check failed.']);
+    }
 
     if (!is_user_logged_in()) {
         wp_send_json_error(['message' => 'User not logged in.']);
@@ -2753,7 +2887,9 @@ add_action('wp_ajax_arc_generate_certificate_links', 'arc_generate_certificate_l
 // AJAX handler for dynamic user filtering
 function arc_filter_users_ajax_handler() {
     // Security checks
-    check_ajax_referer('arc_dashboard_nonce');
+    if (!check_ajax_referer('arc_dashboard_nonce', '_wpnonce', false)) {
+        wp_send_json_error(['message' => 'Security check failed.']);
+    }
 
     if (!is_user_logged_in()) {
         wp_send_json_error(['message' => 'User not logged in.']);
@@ -2774,7 +2910,7 @@ function arc_filter_users_ajax_handler() {
     // Get all users and apply filters (same logic as dashboard)
     $all_users = get_users(['orderby' => 'display_name', 'order' => 'ASC', 'fields' => 'all']);
 
-    // For administrators, use all users; for others, use descendants only
+    // For administrators or data-viewers, use all users; others use descendants only
     if (in_array('administrator', $user_roles) || in_array('data-viewer', $user_roles)) {
         $users_to_filter = $all_users;
     } else {
@@ -2820,13 +2956,60 @@ function arc_filter_users_ajax_handler() {
         return true;
     });
 
-    $total_users = count($filtered_users);
-    $visible_users = array_slice(array_values($filtered_users), ($paged - 1) * $per_page, $per_page);
+    // Order users so that children appear directly under their parent
+    $filtered_users = array_values($filtered_users);
+    $user_ids_set = [];
+    foreach ($filtered_users as $u) { $user_ids_set[$u->ID] = true; }
+
+    // Build parent → children map using parent_user_id
+    $children_map = [];
+    $parent_of = [];
+    foreach ($filtered_users as $u) {
+        $pid = intval(get_user_meta($u->ID, 'parent_user_id', true));
+        $parent_of[$u->ID] = $pid;
+        if ($pid > 0 && isset($user_ids_set[$pid])) {
+            if (!isset($children_map[$pid])) { $children_map[$pid] = []; }
+            $children_map[$pid][] = $u->ID;
+        }
+    }
+
+    // Produce ordered list: top-level users first, then their descendants
+    $ordered_users = [];
+    $visited = [];
+    $by_id = [];
+    foreach ($filtered_users as $u) { $by_id[$u->ID] = $u; }
+
+    $add_with_children = function($id) use (&$add_with_children, &$ordered_users, &$visited, $children_map, $by_id) {
+        if (isset($visited[$id])) { return; }
+        $visited[$id] = true;
+        if (isset($by_id[$id])) { $ordered_users[] = $by_id[$id]; }
+        if (!empty($children_map[$id])) {
+            foreach ($children_map[$id] as $child_id) {
+                $add_with_children($child_id);
+            }
+        }
+    };
+
+    // Add all top-level users (no parent or parent not in filtered set)
+    foreach ($filtered_users as $u) {
+        $pid = $parent_of[$u->ID] ?? 0;
+        if ($pid <= 0 || !isset($user_ids_set[$pid])) {
+            $add_with_children($u->ID);
+        }
+    }
+
+    // In case of any remaining users not yet added (to handle cycles or orphaned), add them
+    foreach ($filtered_users as $u) {
+        if (!isset($visited[$u->ID])) { $add_with_children($u->ID); }
+    }
+
+    $total_users = count($ordered_users);
+    $visible_users = array_slice($ordered_users, ($paged - 1) * $per_page, $per_page);
 
     // Build user data for response
     $children_users = [];
     foreach ($visible_users as $user) {
-        $parent_id = get_user_meta($user->ID, 'parent_user_id', true);
+        $parent_id = intval(get_user_meta($user->ID, 'parent_user_id', true));
         $program = get_user_meta($user->ID, 'programme', true);
         $site = get_user_meta($user->ID, 'sites', true);
         if (!is_array($site))
@@ -2848,6 +3031,7 @@ function arc_filter_users_ajax_handler() {
             'name' => $user->display_name,
             'role' => implode(', ', $user->roles),
             'parent' => $parent_name,
+            'parent_id' => $parent_id,
             'program' => $program ?: '—',
             'site' => $site_display,
             'total_courses' => $total_courses,
@@ -2895,9 +3079,14 @@ function arc_filter_users_ajax_handler() {
     $table_html .= '</tr></thead><tbody>';
 
     foreach ($children_users as $user) {
-        $table_html .= '<tr>';
+        $row_class = !empty($user['parent_id']) ? ' class="child-row"' : '';
+        $row_attr = ' data-parent-id="' . intval($user['parent_id']) . '"';
+        $table_html .= '<tr' . $row_class . $row_attr . '>';
         $table_html .= '<td><input type="checkbox" name="bulk_users[]" value="' . esc_attr($user['id']) . '" class="bulk-checkbox"></td>';
-        $table_html .= '<td>' . esc_html($user['name']) . '</td>';
+        $name_cell = esc_html($user['name']);
+        if (!empty($user['parent_id'])) { $name_cell = '— ' . $name_cell; }
+        $pad_style = !empty($user['parent_id']) ? ' style="padding-left: 20px;"' : '';
+        $table_html .= '<td' . $pad_style . '>' . $name_cell . '</td>';
         $table_html .= '<td>' . esc_html($user['role']) . '</td>';
         $table_html .= '<td>' . esc_html($user['parent']) . '</td>';
         $table_html .= '<td>' . esc_html($user['program']) . '</td>';
@@ -2911,7 +3100,7 @@ function arc_filter_users_ajax_handler() {
             $table_html .= '<button type="button" class="btn btn-view" data-user-id="' . intval($user['id']) . '">' . __('View', 'role-user-manager') . '</button>';
         } else {
             $table_html .= '<button type="button" class="btn btn-edit" data-user-id="' . intval($user['id']) . '">' . __('Edit', 'role-user-manager') . '</button>';
-            $table_html .= '<button type="button" class="btn btn-remove" data-user-id="' . intval($user['id']) . '">' . __('Remove', 'role-user-manager') . '</button>';
+            // $table_html .= '<button type="button" class="btn btn-remove" data-user-id="' . intval($user['id']) . '">' . __('Remove', 'role-user-manager') . '</button>';
         }
         
         // Add promotion buttons if available
@@ -4276,3 +4465,4 @@ add_action('wp_ajax_arc_get_site_detail_data', function() {
     
     wp_send_json_success(['html' => $html]);
 });
+

@@ -60,14 +60,20 @@ function arc_show_custom_user_fields($user)
         </tr>
         <tr id="arc_sites_row">
             <th><label for="arc_sites">Sites</label></th>
-            <td id="arc_sites_cell">
+            <td id="arc_sites_cell" style="width:100%; max-width:300px;">
                 <!-- Will be replaced by JS for readonly or single-select if needed -->
-                <select name="arc_sites[]" id="arc_sites" multiple="multiple"></select>
+                <select style="width:100%; max-width:300px" name="arc_sites[]" id="arc_sites" multiple="multiple"></select>
                 <span id="arc_sites_readonly" style="display:block;"></span>
                 <p class="description" id="arc_sites_desc">Select one or more sites. Use Ctrl/Cmd to select multiple.</p>
             </td>
         </tr>
     </table>
+<style>
+	.select2-container {
+    max-width: min-content !important;
+		min-width:300px;
+}
+</style>
     <script>
         (function($) {
             function populateSitesDropdown(availableSites, selectedSites) {

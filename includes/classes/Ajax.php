@@ -495,7 +495,7 @@ class Ajax {
      * Export users
      */
     public static function export_users(): void {
-        if (!current_user_can('edit_users')) {
+        if (!current_user_can('edit_users') || current_user_can('data_viewer_export')) {
             self::send_error('Insufficient permissions');
         }
         

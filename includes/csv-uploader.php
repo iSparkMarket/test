@@ -224,9 +224,9 @@ function cram_upload_csv_ui()
                 <table class="modern-data-table widefat">
                     <thead>
                         <tr>
-                            <th style="width: 30%;">Program Name</th>
-                            <th style="width: 45%;">Site Name</th>
-                            <th style="width: 25%;">Actions</th>
+                            <th >Program Name</th>
+                            <th >Site Name</th>
+                            <th >Actions</th>
                         </tr>
                     </thead>
                     <tbody>

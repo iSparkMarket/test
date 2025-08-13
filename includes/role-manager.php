@@ -1870,13 +1870,21 @@ new AdvancedRoleCapabilitiesManager();
 // Activation hook
 register_activation_hook(__FILE__, 'arc_activate');
 function arc_activate(): void
-{
+{   $group_leader = get_role('group_leader');
+	$caps = [];
+    if ($group_leader) {
+        $caps = $group_leader->capabilities;
+    }
+
+    // Ensure 'read' is included
+    $caps['read'] = true;
+
 	// Create any necessary database tables or options
 	add_option('arc_role_hierarchy', []);
 	add_option('arc_audit_log', []); // Initialize audit log
 
 	// Create custom roles
-	add_role('data-viewer', __('Data Viewer', 'role-user-manager'), ['read' => true]);
+	add_role('data-viewer', __('Data Viewer', 'role-user-manager'), $caps);
 	add_role('program-leader', __('Program Leader', 'role-user-manager'), ['read' => true]);
 	add_role('site-supervisor', __('Site Supervisor', 'role-user-manager'), ['read' => true]);
 	add_role('frontline-staff', __('Frontline Staff', 'role-user-manager'), ['read' => true]);

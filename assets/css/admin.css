@@ -5,7 +5,9 @@
     margin: 0 auto;
     padding: 20px;
 }
-
+select#arc_sites{
+	width:100%;
+}
 /* Dashboard Header */
 .dashboard-header {
     background: #fff;

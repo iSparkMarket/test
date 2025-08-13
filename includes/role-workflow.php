@@ -398,8 +398,8 @@ class RoleAssignmentWorkflow
             [
                 'requester_id' => $requester_id,
                 'user_id' => $user_id,
-                '`current_role`' => $current_role,
-                '`requested_role`' => $requested_role,
+                'current_role' => $current_role,
+                'requested_role' => $requested_role,
                 'reason' => $reason,
                 'status' => self::STATUS_PENDING,
             ],
