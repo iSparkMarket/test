@@ -554,8 +554,8 @@ class Ajax {
                 $user->display_name,
                 $user->user_email,
                 implode(', ', $user->roles),
-                $program ?: '—',
-                $site ?: '—',
+                $program ?: '-',
+                $site ?: '-',
                 $user->user_registered
             ];
         }

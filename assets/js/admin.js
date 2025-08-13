@@ -252,7 +252,12 @@ jQuery(document).ready(function($) {
             openUserEditModal(userId);
         } else {
             console.log('openUserEditModal function not found, using fallback');
-            editUser(userId);
+            // Fallback: open quick edit modal in admin dashboard if exists
+            if ($('#rum-quick-edit-modal').length) {
+                openQuickEditModal(userId);
+            } else {
+                editUser(userId);
+            }
         }
     });
     
@@ -501,3 +506,107 @@ jQuery(document).ready(function($) {
         });
     }
 });
+
+// Admin Quick Edit Modal (used on Users > RUM Dashboard)
+function openQuickEditModal(userId){
+  const $ = jQuery;
+  const $container = $('#rum-quick-edit-modal');
+  const nonce = $('#rum_export_nonce').val() || (window.arc_dashboard_vars ? window.arc_dashboard_vars.nonce : '');
+  $container.html('<div class="dashboard-modal" style="display:block"><div class="modal-backdrop"></div><div class="modal-dialog"><div class="modal-header"><h3>Quick Edit User</h3><button class="modal-close">&times;</button></div><div class="modal-content"><div class="loading-spinner">Loading...</div></div></div></div>');
+  $container.show();
+
+  function close(){ $container.find('.dashboard-modal').fadeOut(200, function(){ $container.empty().hide(); }); }
+  $container.on('click', '.modal-close, .modal-backdrop', close);
+
+  // Load options + user
+  jQuery.when(
+    $.post(ajaxurl, {action:'rum_admin_get_options', nonce: nonce}),
+    $.post(ajaxurl, {action:'rum_admin_get_user', user_id: userId, nonce: nonce})
+  ).done(function(optsResp, userResp){
+    const opts = (optsResp && optsResp[0] && optsResp[0].success) ? optsResp[0].data : {roles:{},parents:[],programs:[]};
+    const usr = (userResp && userResp[0] && userResp[0].success) ? userResp[0].data : null;
+    if(!usr){ $container.find('.modal-content').html('<p>Error loading user.</p>'); return; }
+
+    // Build form
+    const roleOptions = Object.keys(opts.roles).map(function(k){ return '<option value="'+k+'">'+opts.roles[k]+'</option>'; }).join('');
+    const parentOptions = ['<option value="0">-</option>'].concat(opts.parents.map(function(p){ return '<option value="'+p.id+'">'+p.name+' ('+p.role+')</option>'; })).join('');
+    const programOptions = ['<option value="">-</option>'].concat(opts.programs.map(function(p){ return '<option>'+p+'</option>'; })).join('');
+    const siteChips = (usr.sites||[]).map(function(s){ return '<span class="tag">'+s+'</span>'; }).join(' ');
+
+    const html = [
+      '<form id="rum-quick-edit-form">',
+        '<table class="form-table">',
+          '<tr><th>Role</th><td><select name="role" id="rum-qe-role">', roleOptions, '</select></td></tr>',
+          '<tr><th>Parent User</th><td><select name="parent_user_id" id="rum-qe-parent">', parentOptions, '</select></td></tr>',
+          '<tr><th>Program</th><td><select name="program" id="rum-qe-program">', programOptions, '</select></td></tr>',
+          '<tr><th>Sites</th><td><input type="text" name="sites" id="rum-qe-sites" placeholder="Comma-separated" /></td></tr>',
+        '</table>',
+        '<p class="submit"><button class="button button-primary" type="submit">Save</button> <button type="button" class="button modal-close">Cancel</button></p>',
+        '<input type="hidden" name="user_id" value="'+userId+'" />',
+        '<input type="hidden" name="nonce" value="'+nonce+'" />',
+      '</form>'
+    ].join('');
+    $container.find('.modal-content').html(html);
+    $('#rum-qe-role').val(usr.role);
+    $('#rum-qe-parent').val(usr.parent);
+    $('#rum-qe-program').val(usr.program);
+    $('#rum-qe-sites').val((usr.sites||[]).join(', '));
+
+    function applyRoleRules(){
+      const role = $('#rum-qe-role').val();
+      const parentVal = $('#rum-qe-parent').val();
+      if(role === 'program-leader'){
+        $('#rum-qe-parent').val('0').prop('disabled', true);
+        $('#rum-qe-program').prop('disabled', false);
+        $('#rum-qe-sites').prop('disabled', false);
+      } else if(role === 'site-supervisor'){
+        $('#rum-qe-parent').prop('disabled', false);
+        // program is inherited; disable direct change
+        $('#rum-qe-program').prop('disabled', true);
+        // single site only
+        $('#rum-qe-sites').prop('disabled', false);
+      } else if(role === 'frontline-staff'){
+        $('#rum-qe-parent').prop('disabled', false);
+        $('#rum-qe-program').prop('disabled', true);
+        $('#rum-qe-sites').prop('disabled', true);
+      } else {
+        $('#rum-qe-parent, #rum-qe-program, #rum-qe-sites').prop('disabled', false);
+      }
+    }
+    applyRoleRules();
+    $container.on('change', '#rum-qe-role', applyRoleRules);
+
+    // If parent changes and role requires inheritance, fetch data
+    $container.on('change', '#rum-qe-parent, #rum-qe-role', function(){
+      const role = $('#rum-qe-role').val();
+      const pid = parseInt($('#rum-qe-parent').val()||'0',10);
+      if((role === 'site-supervisor' || role === 'frontline-staff') && pid>0){
+        $.post(ajaxurl, {action:'rum_admin_get_parent_data', parent_id: pid, nonce: nonce}).done(function(resp){
+          if(resp && resp.success){
+            if(role !== 'program-leader'){
+              $('#rum-qe-program').val(resp.data.program);
+            }
+            if(role === 'frontline-staff'){
+              $('#rum-qe-sites').val((resp.data.sites||[]).join(', '));
+            }
+          }
+        });
+      }
+    });
+
+    $container.on('submit', '#rum-quick-edit-form', function(e){
+      e.preventDefault();
+      const payload = $(this).serializeArray().reduce(function(a,i){ a[i.name]=i.value; return a; },{});
+      payload.action = 'rum_quick_update_user';
+      $.post(ajaxurl, payload).done(function(resp){
+        if(resp && resp.success){
+          location.reload();
+        } else {
+          alert((resp && resp.data && resp.data.message) ? resp.data.message : 'Update failed');
+        }
+      }).fail(function(){ alert('Update error'); });
+    });
+  }).fail(function(){
+    $container.find('.modal-content').html('<p>Error loading data.</p>');
+  });
+}

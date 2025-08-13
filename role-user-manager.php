@@ -34,6 +34,9 @@ rum_require_file(plugin_dir_path(__FILE__) . 'includes/role-manager.php');
 rum_require_file(plugin_dir_path(__FILE__) . 'includes/dashboard.php');
 rum_require_file(plugin_dir_path(__FILE__) . 'includes/user-meta.php');
 rum_require_file(plugin_dir_path(__FILE__) . 'includes/role-workflow.php');
+// New admin dashboard (tabs)
+rum_require_file(plugin_dir_path(__FILE__) . 'includes/admin-user-list-table.php');
+rum_require_file(plugin_dir_path(__FILE__) . 'includes/admin-dashboard-page.php');
 
 // --- Plugin activation hook ---
 register_activation_hook(__FILE__, 'rum_plugin_activate');
@@ -103,6 +106,7 @@ function arc_enqueue_admin_assets(string $hook): void {
     $allowed_pages = [
         'upload-csv',
         'role-capabilities',
+        'users_page_rum-dashboard',
     ];
 
     if (!in_array($hook, $allowed_pages, true)) {
@@ -112,12 +116,16 @@ function arc_enqueue_admin_assets(string $hook): void {
     $plugin_url = plugin_dir_url(__FILE__) . 'assets/';
 
     // Enqueue CSS
-    wp_enqueue_style('arc-admin-css', $plugin_url . 'admin.css', [], '1.0');
-    wp_enqueue_style('csv-css', $plugin_url . 'csv-style.css', [], '1.0');
-    wp_enqueue_style('Role-manager-css', $plugin_url . 'role-manager-style.css', [], '1.0');
+    wp_enqueue_style('arc-admin-css', $plugin_url . 'css/admin.css', [], '1.0');
+    wp_enqueue_style('csv-css', $plugin_url . 'css/csv-style.css', [], '1.0');
+    wp_enqueue_style('Role-manager-css', $plugin_url . 'css/role-manager-style.css', [], '1.0');
+    wp_enqueue_style('rum-admin-dashboard-css', $plugin_url . 'css/admin-dashboard.css', [], '1.0');
 
     // Enqueue JS
-    wp_enqueue_script('arc-admin-custom-js', $plugin_url . 'custom.js', ['jquery'], '1.0', true);
+    // Core admin interactions for this plugin
+    wp_enqueue_script('rum-admin-js-core', $plugin_url . 'js/admin.js', ['jquery'], '1.0', true);
+    wp_enqueue_script('arc-admin-custom-js', $plugin_url . 'js/custom.js', ['jquery'], '1.0', true);
+    wp_enqueue_script('rum-admin-dashboard-js', $plugin_url . 'js/admin-dashboard.js', ['jquery'], '1.0', true);
 
 
 }

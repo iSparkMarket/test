@@ -86,9 +86,27 @@ function arc_get_descendant_user_ids(int $parent_id, array $all_users, int $dept
     $descendants = [];
     foreach ($all_users as $user) {
         $user_parent = get_user_meta($user->ID, 'parent_user_id', true);
+        $primary_role = !empty($user->roles) ? $user->roles[0] : '';
+        // Enforce hierarchy everywhere:
+        // - data-viewer and program-leader must not have parents
+        if ($primary_role === 'data-viewer' || $primary_role === 'program-leader') {
+            $user_parent = 0;
+        } elseif ($primary_role === 'site-supervisor') {
+            // site-supervisor must have parent with role program-leader
+            $parent_user = $user_parent ? get_user_by('id', (int)$user_parent) : null;
+            if (!$parent_user || empty($parent_user->roles) || $parent_user->roles[0] !== 'program-leader') {
+                continue;
+            }
+        } elseif ($primary_role === 'frontline-staff') {
+            // frontline-staff must have parent with role site-supervisor
+            $parent_user = $user_parent ? get_user_by('id', (int)$user_parent) : null;
+            if (!$parent_user || empty($parent_user->roles) || $parent_user->roles[0] !== 'site-supervisor') {
+                continue;
+            }
+        }
+
         if ($user_parent && intval($user_parent) === intval($parent_id)) {
             $descendants[] = $user->ID;
-            // Recursively get this child's descendants
             $descendants = array_merge($descendants, arc_get_descendant_user_ids($user->ID, $all_users, $depth + 1));
         }
     }
@@ -442,8 +460,8 @@ if (!is_user_logged_in()) {
         $site = get_user_meta($user->ID, 'sites', true);
         if (!is_array($site))
             $site = [];
-        $site_display = !empty($site) ? implode(', ', array_map('trim', $site)) : '—';
-        $parent_name = $parent_id ? get_user_by('id', $parent_id)->display_name : '—';
+        $site_display = !empty($site) ? implode(', ', array_map('trim', $site)) : '-';
+        $parent_name = $parent_id ? get_user_by('id', $parent_id)->display_name : '-';
 
         // Get LearnDash stats with error handling
         $total_courses = 0;
@@ -459,7 +477,7 @@ if (!is_user_logged_in()) {
             'name' => $user->display_name,
             'role' => implode(', ', $user->roles),
             'parent' => $parent_name,
-            'program' => $program ?: '—',
+            'program' => $program ?: '-',
             'site' => $site_display,
             'total_courses' => $total_courses,
             'total_certificates' => $total_certificates,
@@ -2282,6 +2300,8 @@ function arc_export_users_handler()
     // Get filter parameters
     $filter_program = isset($_POST['filter_program']) ? sanitize_text_field($_POST['filter_program']) : '';
     $filter_site = isset($_POST['filter_site']) ? sanitize_text_field($_POST['filter_site']) : '';
+    $filter_role = isset($_POST['filter_role']) ? sanitize_text_field($_POST['filter_role']) : '';
+    $filter_parent = isset($_POST['filter_parent']) ? intval($_POST['filter_parent']) : 0;
     $filter_training_status = isset($_POST['filter_training_status']) ? sanitize_text_field($_POST['filter_training_status']) : '';
     $filter_date_start = isset($_POST['filter_date_start']) ? sanitize_text_field($_POST['filter_date_start']) : '';
     $filter_date_end = isset($_POST['filter_date_end']) ? sanitize_text_field($_POST['filter_date_end']) : '';
@@ -2302,7 +2322,22 @@ function arc_export_users_handler()
     // Apply filters to users
     // Support both POST and GET for search term, to be robust
     $user_search = isset($_REQUEST['user_search']) ? sanitize_text_field($_REQUEST['user_search']) : '';
-    $filtered_users = array_filter($users_to_filter, function ($user) use ($filter_program, $filter_site, $filter_training_status, $filter_date_start, $filter_date_end, $user_search) {
+    $filtered_users = array_filter($users_to_filter, function ($user) use ($filter_program, $filter_site, $filter_training_status, $filter_date_start, $filter_date_end, $user_search, $filter_role, $filter_parent) {
+        // Filter by role (primary)
+        if (!empty($filter_role)) {
+            $primary_role = !empty($user->roles) ? $user->roles[0] : '';
+            if ($primary_role !== $filter_role) {
+                return false;
+            }
+        }
+
+        // Filter by parent
+        if (!empty($filter_parent)) {
+            $parent_id = intval(get_user_meta($user->ID, 'parent_user_id', true));
+            if ($parent_id !== intval($filter_parent)) {
+                return false;
+            }
+        }
         // Filter by program
         if (!empty($filter_program)) {
             $user_program = get_user_meta($user->ID, 'programme', true);
@@ -2424,8 +2459,8 @@ function arc_export_users_handler()
         if (!is_array($site)) {
             $site = [];
         }
-        $site_display = !empty($site) ? implode(', ', array_map('trim', $site)) : '—';
-        $parent_name = $parent_id ? get_user_by('id', $parent_id)->display_name : '—';
+        $site_display = !empty($site) ? implode(', ', array_map('trim', $site)) : '-';
+        $parent_name = $parent_id ? get_user_by('id', $parent_id)->display_name : '-';
 
         // Get LearnDash stats
         $total_courses = 0;
@@ -2441,7 +2476,7 @@ function arc_export_users_handler()
             $user->user_email,
             implode(', ', $user->roles),
             $parent_name,
-            $program ?: '—',
+            $program ?: '-',
             $site_display,
             $total_courses,
             $total_certificates,
@@ -3014,8 +3049,8 @@ function arc_filter_users_ajax_handler() {
         $site = get_user_meta($user->ID, 'sites', true);
         if (!is_array($site))
             $site = [];
-        $site_display = !empty($site) ? implode(', ', array_map('trim', $site)) : '—';
-        $parent_name = $parent_id ? get_user_by('id', $parent_id)->display_name : '—';
+        $site_display = !empty($site) ? implode(', ', array_map('trim', $site)) : '-';
+        $parent_name = $parent_id ? get_user_by('id', $parent_id)->display_name : '-';
 
         // Get LearnDash stats with error handling
         $total_courses = 0;
@@ -3032,7 +3067,7 @@ function arc_filter_users_ajax_handler() {
             'role' => implode(', ', $user->roles),
             'parent' => $parent_name,
             'parent_id' => $parent_id,
-            'program' => $program ?: '—',
+            'program' => $program ?: '-',
             'site' => $site_display,
             'total_courses' => $total_courses,
             'total_certificates' => $total_certificates,
@@ -3084,7 +3119,7 @@ function arc_filter_users_ajax_handler() {
         $table_html .= '<tr' . $row_class . $row_attr . '>';
         $table_html .= '<td><input type="checkbox" name="bulk_users[]" value="' . esc_attr($user['id']) . '" class="bulk-checkbox"></td>';
         $name_cell = esc_html($user['name']);
-        if (!empty($user['parent_id'])) { $name_cell = '— ' . $name_cell; }
+        if (!empty($user['parent_id'])) { $name_cell = '- ' . $name_cell; }
         $pad_style = !empty($user['parent_id']) ? ' style="padding-left: 20px;"' : '';
         $table_html .= '<td' . $pad_style . '>' . $name_cell . '</td>';
         $table_html .= '<td>' . esc_html($user['role']) . '</td>';
@@ -4451,7 +4486,7 @@ add_action('wp_ajax_arc_get_site_detail_data', function() {
             $html .= '<tr>';
             $html .= '<td>' . esc_html($user->display_name) . '</td>';
             $html .= '<td>' . esc_html($user->user_email) . '</td>';
-            $html .= '<td>' . esc_html($user->programme ?: '—') . '</td>';
+            $html .= '<td>' . esc_html($user->programme ?: '-') . '</td>';
             $html .= '<td>' . esc_html($role) . '</td>';
             $html .= '<td>' . date('M j, Y', strtotime($user->user_registered)) . '</td>';
             $html .= '</tr>';

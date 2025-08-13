@@ -1,0 +1,5 @@
+.rum-data-viewer-filters{display:flex;gap:10px;align-items:center}
+.rum-tree{list-style: none; margin:0; padding-left: 16px}
+.rum-tree > li > ul{margin-top:6px}
+.rum-tree li{margin:4px 0}
+

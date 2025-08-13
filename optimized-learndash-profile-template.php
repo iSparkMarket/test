@@ -2038,7 +2038,7 @@ if (!function_exists('show_external_courses_list')) {
             if ($c->certificate_file) {
                 echo '<td style="padding:10px 8px;"><a href="' . esc_url($c->certificate_file) . '" target="_blank" rel="noopener" style="color:#667eea;text-decoration:none;">' . esc_html__('View', 'learndash') . '</a></td>';
             } else {
-                echo '<td style="padding:10px 8px;color:#aaa;">—</td>';
+                echo '<td style="padding:10px 8px;color:#aaa;">-</td>';
             }
 
             $status_color = '';
